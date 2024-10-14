@@ -9,8 +9,8 @@ CREATE TABLE aggregate_report_records (
     header_from text,
     envelope_from text,
     envelope_to text,
-    aggregate_report_id text,
-    record_number bigint
+    aggregate_report_id text NOT NULL,
+    record_number bigint NOT NULL
 );
 
 CREATE TABLE aggregate_reports (
@@ -31,28 +31,40 @@ CREATE TABLE aggregate_reports (
 );
 
 CREATE TABLE dkim_auth_results (
-    domain text,
+    domain text NOT NULL,
     selector text,
     result text,
     human_result text,
-    aggregate_report_id text,
-    record_number bigint
+    aggregate_report_id text NOT NULL,
+    record_number bigint NOT NULL
 );
 
 CREATE TABLE po_reasons (
-    reason text,
+    reason text NOT NULL,
     comment text,
-    aggregate_report_id text,
-    record_number bigint
+    aggregate_report_id text NOT NULL,
+    record_number bigint NOT NULL
 );
 
 CREATE TABLE spf_auth_results (
-    domain text,
+    domain text NOT NULL,
     scope text,
     result text,
-    aggregate_report_id text,
-    record_number bigint
+    aggregate_report_id text NOT NULL,
+    record_number bigint NOT NULL
 );
+
+ALTER TABLE ONLY aggregate_report_records
+    ADD CONSTRAINT aggregate_report_records_pkey PRIMARY KEY (aggregate_report_id, record_number);
 
 ALTER TABLE ONLY aggregate_reports
     ADD CONSTRAINT aggregate_reports_pkey PRIMARY KEY (message_id);
+
+ALTER TABLE ONLY dkim_auth_results
+    ADD CONSTRAINT dkim_auth_results_pkey PRIMARY KEY (domain, aggregate_report_id, record_number);
+
+ALTER TABLE ONLY po_reasons
+    ADD CONSTRAINT po_reasons_pkey PRIMARY KEY (reason, aggregate_report_id, record_number);
+
+ALTER TABLE ONLY spf_auth_results
+    ADD CONSTRAINT spf_auth_results_pkey PRIMARY KEY (domain, aggregate_report_id, record_number);
