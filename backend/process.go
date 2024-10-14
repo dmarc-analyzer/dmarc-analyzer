@@ -20,7 +20,7 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
-func ParseNewMail(bucketName, messageId string) (*AggregateReport, error) {
+func ParseNewMail(bucketName, messageID string) (*AggregateReport, error) {
 	sdkConfig, err := config.LoadDefaultConfig(context.Background())
 	sdkConfig.Region = "us-east-1"
 	if err != nil {
@@ -32,22 +32,33 @@ func ParseNewMail(bucketName, messageId string) (*AggregateReport, error) {
 
 	params := &s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
-		Key:    aws.String(messageId),
+		Key:    aws.String(messageID),
 	}
 	resp, err := s3Client.GetObject(context.Background(), params)
 
 	if err != nil {
-		fmt.Printf("Couldn't get object %v:%v. Here's why: %v\n", bucketName, messageId, err)
+		fmt.Printf("Couldn't get object %v:%v. Here's why: %v\n", bucketName, messageID, err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	attachment, err := DmarcReportPrepareAttachment(resp.Body)
 	if err != nil {
-		fmt.Printf("Couldn't prepare attachment %v:%v. Here's why: %v\n", bucketName, messageId, err)
+		fmt.Printf("Couldn't prepare attachment %v:%v. Here's why: %v\n", bucketName, messageID, err)
 		return nil, err
 	}
 
+	feedback, err := DecoderAggregateReport(attachment, messageID)
+
+	if err != nil {
+		fmt.Printf("Couldn't decode attachment %v:%v. Here's why: %v\n", bucketName, messageID, err)
+		return nil, err
+	}
+
+	return feedback, err
+}
+
+func DecoderAggregateReport(attachment io.Reader, messageID string) (*AggregateReport, error) {
 	feedback := &AggregateReport{}
 	decoder := xml.NewDecoder(attachment)
 	decoder.CharsetReader = charset.NewReaderLabel
@@ -55,9 +66,30 @@ func ParseNewMail(bucketName, messageId string) (*AggregateReport, error) {
 		return nil, err
 	}
 
-	feedback.MessageId = messageId
+	feedback.MessageID = messageID
 
-	return feedback, err
+	for num := range feedback.Records {
+		record := &feedback.Records[num]
+		record.AggregateReportID = messageID
+		record.RecordNumber = int64(num)
+
+		for i := range record.AuthDKIM {
+			record.AuthDKIM[i].AggregateReportID = record.AggregateReportID
+			record.AuthDKIM[i].RecordNumber = record.RecordNumber
+		}
+
+		for i := range record.AuthSPF {
+			record.AuthSPF[i].AggregateReportID = record.AggregateReportID
+			record.AuthSPF[i].RecordNumber = record.RecordNumber
+		}
+
+		for i := range record.POReason {
+			record.POReason[i].AggregateReportID = record.AggregateReportID
+			record.POReason[i].RecordNumber = record.RecordNumber
+		}
+	}
+
+	return feedback, nil
 }
 
 // ExtractZipFile ExtractFile extracts first file from zip archive
