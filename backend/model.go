@@ -31,30 +31,30 @@ type AggregateReportRecord struct {
 	EnvelopeTo        string           `xml:"identifiers>envelope_to" gorm:"column:envelope_to"` // min 0
 	AuthDKIM          []DKIMAuthResult `xml:"auth_results>dkim" gorm:"-"`                        // min 0
 	AuthSPF           []SPFAuthResult  `xml:"auth_results>spf" gorm:"-"`
-	AggregateReportID string           `gorm:"column:aggregate_report_id"`
-	RecordNumber      int64            `gorm:"column:record_number"`
+	AggregateReportID string           `gorm:"column:aggregate_report_id;primaryKey"`
+	RecordNumber      int64            `gorm:"column:record_number;primaryKey"`
 }
 
 type POReason struct {
-	Reason            string `xml:"type" gorm:"column:reason"`
+	Reason            string `xml:"type" gorm:"column:reason;primaryKey"`
 	Comment           string `xml:"comment" gorm:"column:comment"`
-	AggregateReportID string `gorm:"column:aggregate_report_id"`
-	RecordNumber      int64  `gorm:"column:record_number"`
+	AggregateReportID string `gorm:"column:aggregate_report_id;primaryKey"`
+	RecordNumber      int64  `gorm:"column:record_number;primaryKey"`
 }
 
 type DKIMAuthResult struct {
-	Domain            string `xml:"domain" gorm:"column:domain"`
+	Domain            string `xml:"domain" gorm:"column:domain;primaryKey"`
 	Selector          string `xml:"selector" gorm:"column:selector"`
 	Result            string `xml:"result" gorm:"column:result"`
 	HumanResult       string `xml:"human_result" gorm:"column:human_result"`
-	AggregateReportID string `gorm:"column:aggregate_report_id"`
-	RecordNumber      int64  `gorm:"column:record_number"`
+	AggregateReportID string `gorm:"column:aggregate_report_id;primaryKey"`
+	RecordNumber      int64  `gorm:"column:record_number;primaryKey"`
 }
 
 type SPFAuthResult struct {
-	Domain            string `xml:"domain" gorm:"column:domain"`
+	Domain            string `xml:"domain" gorm:"column:domain;primaryKey"`
 	Scope             string `xml:"scope" gorm:"column:scope"`
 	Result            string `xml:"result" gorm:"column:result"`
-	AggregateReportID string `gorm:"column:aggregate_report_id"`
-	RecordNumber      int64  `gorm:"column:record_number"`
+	AggregateReportID string `gorm:"column:aggregate_report_id;primaryKey"`
+	RecordNumber      int64  `gorm:"column:record_number;primaryKey"`
 }
