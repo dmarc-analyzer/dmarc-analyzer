@@ -58,3 +58,45 @@ type SPFAuthResult struct {
 	AggregateReportID string `gorm:"column:aggregate_report_id;primaryKey"`
 	RecordNumber      int64  `gorm:"column:record_number;primaryKey"`
 }
+
+type DmarcReportingFull struct {
+	MessageID         string      `json:"message_id" gorm:"column:message_id"`
+	RecordNumber      int64       `json:"record_number" gorm:"column:record_number"`
+	Domain            string      `json:"domain" gorm:"column:domain"`
+	Policy            string      `json:"policy" gorm:"column:policy"`
+	SubdomainPolicy   string      `json:"subdomain_policy" gorm:"column:subdomain_policy"`
+	AlignDKIM         string      `json:"align_dkim" gorm:"column:align_dkim"`
+	AlignSPF          string      `json:"align_spf" gorm:"column:align_spf"`
+	Pct               int         `json:"pct" gorm:"column:pct"`
+	SourceIP          string      `json:"source_ip" gorm:"column:source_ip"`
+	ESP               string      `json:"esp" gorm:"column:esp"`
+	OrgName           string      `json:"org_name" gorm:"column:org_name"`
+	OrgId             string      `json:"org_id" gorm:"column:org_id"`
+	HostName          string      `json:"host_name" gorm:"column:host_name"`
+	DomainName        string      `json:"domain_name" gorm:"column:domain_name"`
+	HostnameMatchesIP string      `json:"host_name_matches_ip" gorm:"column:host_name_matches_ip"`
+	City              string      `json:"city" gorm:"column:city"`
+	State             string      `json:"state" gorm:"column:state"`
+	Country           string      `json:"country" gorm:"column:country"`
+	Longitude         string      `json:"longitude" gorm:"column:longitude"`
+	Latitude          string      `json:"latitude" gorm:"column:latitude"`
+	ReverseLookup     StringArray `json:"reverse_lookup" gorm:"column:reverse_lookup;"`
+	MessageCount      int64       `json:"message_count" gorm:"column:message_count"`
+	Disposition       string      `json:"disposition" gorm:"column:disposition"`
+	EvalDKIM          string      `json:"eval_dkim" gorm:"column:eval_dkim"`
+	EvalSPF           string      `json:"eval_spf" gorm:"column:eval_spf"`
+	HeaderFrom        string      `json:"header_from" gorm:"column:header_from"`
+	EnvelopeFrom      string      `json:"envelope_from" gorm:"column:envelope_from"`
+	EnvelopeTo        string      `json:"envelope_to" gorm:"column:envelope_to"`
+	AuthDKIMDomain    StringArray `json:"auth_dkim_domain" gorm:"column:auth_dkim_domain"`
+	AuthDKIMSelector  StringArray `json:"auth_dkim_selector" gorm:"column:auth_dkim_selector"`
+	AuthDKIMResult    StringArray `json:"auth_dkim_result" gorm:"column:auth_dkim_result"`
+	AuthSPFDomain     StringArray `json:"auth_spf_domain" gorm:"column:auth_spf_domain"`
+	AuthSPFScope      StringArray `json:"auth_spf_scope" gorm:"column:auth_spf_scope"`
+	AuthSPFResult     StringArray `json:"auth_spf_result" gorm:"column:auth_spf_result"`
+	POReason          StringArray `json:"po_reason" gorm:"column:po_reason"`
+	POComment         StringArray `json:"po_comment" gorm:"column:po_comment"`
+	StartDate         int64       `json:"start_date" gorm:"column:start_date"`
+	EndDate           int64       `json:"end_date" gorm:"column:end_date"`
+	LastUpdate        string      `json:"last_update" gorm:"column:last_update"`
+}
