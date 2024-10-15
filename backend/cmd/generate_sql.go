@@ -18,6 +18,7 @@ func main() {
 		&backend.POReason{},
 		&backend.DKIMAuthResult{},
 		&backend.SPFAuthResult{},
+		&backend.DmarcReportingFull{},
 	)
 	fmt.Printf("create table in dev db err: %+v\n", err)
 }

@@ -39,6 +39,48 @@ CREATE TABLE dkim_auth_results (
     record_number bigint NOT NULL
 );
 
+CREATE TABLE dmarc_reporting_fulls (
+    message_id text,
+    record_number bigint,
+    domain text,
+    policy text,
+    subdomain_policy text,
+    align_dkim text,
+    align_spf text,
+    pct bigint,
+    source_ip text,
+    esp text,
+    org_name text,
+    org_id text,
+    host_name text,
+    domain_name text,
+    host_name_matches_ip text,
+    city text,
+    state text,
+    country text,
+    longitude text,
+    latitude text,
+    reverse_lookup text[],
+    message_count bigint,
+    disposition text,
+    eval_dkim text,
+    eval_spf text,
+    header_from text,
+    envelope_from text,
+    envelope_to text,
+    auth_dkim_domain text[],
+    auth_dkim_selector text[],
+    auth_dkim_result text[],
+    auth_spf_domain text[],
+    auth_spf_scope text[],
+    auth_spf_result text[],
+    po_reason text[],
+    po_comment text[],
+    start_date bigint,
+    end_date bigint,
+    last_update text
+);
+
 CREATE TABLE po_reasons (
     reason text NOT NULL,
     comment text,
