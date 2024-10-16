@@ -11,12 +11,14 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/mail"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/dmarc-analyzer/dmarc-analyzer/backend/senderbase"
 	"golang.org/x/net/html/charset"
 )
 
@@ -240,4 +242,69 @@ func DmarcReportPrepareAttachment(f io.Reader) (io.Reader, error) {
 	}
 
 	return nil, fmt.Errorf("PrepareAttachment: reached the end, no attachment found.")
+}
+
+func ParseDmarcReport(feedback *AggregateReport) []*DmarcReportingFull {
+	reports := make([]*DmarcReportingFull, 0)
+	for _, record := range feedback.Records {
+		sbGeo := senderbase.SenderbaseIPData(record.SourceIP)
+		reporting := &DmarcReportingFull{
+			MessageID:         feedback.MessageID,
+			RecordNumber:      record.RecordNumber,
+			Domain:            feedback.Domain,
+			Policy:            feedback.Policy,
+			SubdomainPolicy:   feedback.SubdomainPolicy,
+			AlignDKIM:         feedback.AlignDKIM,
+			AlignSPF:          feedback.AlignSPF,
+			Pct:               feedback.Percentage,
+			StartDate:         feedback.DateRangeBegin,
+			EndDate:           feedback.DateRangeEnd,
+			SourceIP:          record.SourceIP,
+			ReverseLookup:     ResolveAddrNames(record.SourceIP),
+			MessageCount:      record.Count,
+			Disposition:       record.Disposition,
+			EvalDKIM:          record.EvalDKIM,
+			EvalSPF:           record.EvalSPF,
+			HeaderFrom:        record.HeaderFrom,
+			EnvelopeFrom:      record.EnvelopeFrom,
+			EnvelopeTo:        record.EnvelopeTo,
+			OrgName:           sbGeo.OrgName,
+			OrgID:             sbGeo.OrgID,
+			DomainName:        sbGeo.DomainName,
+			HostnameMatchesIP: sbGeo.HostnameMatchesIP,
+			City:              sbGeo.City,
+			State:             sbGeo.State,
+			Country:           sbGeo.Country,
+			Longitude:         sbGeo.Longitude,
+			Latitude:          sbGeo.Latitude,
+		}
+		for _, dkim := range record.AuthDKIM {
+			reporting.AuthDKIMDomain = append(reporting.AuthDKIMDomain, dkim.Domain)
+			reporting.AuthDKIMSelector = append(reporting.AuthDKIMSelector, dkim.Selector)
+			reporting.AuthDKIMResult = append(reporting.AuthDKIMResult, dkim.Result)
+		}
+		for _, spf := range record.AuthSPF {
+			reporting.AuthSPFDomain = append(reporting.AuthSPFDomain, spf.Domain)
+			reporting.AuthSPFScope = append(reporting.AuthSPFScope, spf.Scope)
+			reporting.AuthSPFResult = append(reporting.AuthSPFResult, spf.Result)
+		}
+		for _, po := range record.POReason {
+			reporting.POReason = append(reporting.POReason, po.Reason)
+			reporting.POComment = append(reporting.POComment, po.Comment)
+		}
+		reports = append(reports, reporting)
+	}
+	return reports
+}
+
+// AddrNames includes address and its names array
+type AddrNames struct {
+	Addr  string
+	Names []string
+}
+
+// ResolveAddrNames returns a struct containging an address and a list of names mapping to it
+func ResolveAddrNames(addr string) []string {
+	names, _ := net.LookupAddr(addr)
+	return names
 }
