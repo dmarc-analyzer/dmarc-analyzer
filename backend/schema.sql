@@ -40,8 +40,8 @@ CREATE TABLE dkim_auth_results (
 );
 
 CREATE TABLE dmarc_reporting_fulls (
-    message_id text,
-    record_number bigint,
+    message_id text NOT NULL,
+    record_number bigint NOT NULL,
     domain text,
     policy text,
     subdomain_policy text,
@@ -104,6 +104,9 @@ ALTER TABLE ONLY aggregate_reports
 
 ALTER TABLE ONLY dkim_auth_results
     ADD CONSTRAINT dkim_auth_results_pkey PRIMARY KEY (domain, aggregate_report_id, record_number);
+
+ALTER TABLE ONLY dmarc_reporting_fulls
+    ADD CONSTRAINT dmarc_reporting_fulls_pkey PRIMARY KEY (message_id, record_number);
 
 ALTER TABLE ONLY po_reasons
     ADD CONSTRAINT po_reasons_pkey PRIMARY KEY (reason, aggregate_report_id, record_number);

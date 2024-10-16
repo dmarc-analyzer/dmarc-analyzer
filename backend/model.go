@@ -60,8 +60,8 @@ type SPFAuthResult struct {
 }
 
 type DmarcReportingFull struct {
-	MessageID         string      `json:"message_id" gorm:"column:message_id"`
-	RecordNumber      int64       `json:"record_number" gorm:"column:record_number"`
+	MessageID         string      `json:"message_id" gorm:"column:message_id;primaryKey"`
+	RecordNumber      int64       `json:"record_number" gorm:"column:record_number;primaryKey"`
 	Domain            string      `json:"domain" gorm:"column:domain"`
 	Policy            string      `json:"policy" gorm:"column:policy"`
 	SubdomainPolicy   string      `json:"subdomain_policy" gorm:"column:subdomain_policy"`
@@ -71,7 +71,7 @@ type DmarcReportingFull struct {
 	SourceIP          string      `json:"source_ip" gorm:"column:source_ip"`
 	ESP               string      `json:"esp" gorm:"column:esp"`
 	OrgName           string      `json:"org_name" gorm:"column:org_name"`
-	OrgId             string      `json:"org_id" gorm:"column:org_id"`
+	OrgID             string      `json:"org_id" gorm:"column:org_id"`
 	HostName          string      `json:"host_name" gorm:"column:host_name"`
 	DomainName        string      `json:"domain_name" gorm:"column:domain_name"`
 	HostnameMatchesIP string      `json:"host_name_matches_ip" gorm:"column:host_name_matches_ip"`
