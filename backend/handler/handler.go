@@ -46,7 +46,7 @@ func HandleDomainSummary(c *gin.Context) {
 	start := tStart.Unix()
 	end := tEnd.Unix()
 
-	gr := getSummaryReturn{
+	gr := DomainSummaryResp{
 		Domain: domain,
 	}
 
@@ -176,7 +176,7 @@ type DMARCStats struct {
 	SourceType           string
 }
 
-type getSummaryReturn struct {
+type DomainSummaryResp struct {
 	Summary             []DmarcReportingSummary `json:"summary"`
 	MaxVolume           int64                   `json:"max_volume"`
 	DomainSummaryCounts DomainSummaryCounts     `json:"domain_summary_counts"`
