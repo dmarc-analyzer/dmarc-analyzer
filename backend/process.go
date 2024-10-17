@@ -51,7 +51,7 @@ func ParseNewMail(bucketName, messageID string) (*model.AggregateReport, error) 
 		return nil, err
 	}
 
-	feedback, err := DecoderAggregateReport(attachment, messageID)
+	feedback, err := DecoderAggregateReport(attachment)
 
 	if err != nil {
 		fmt.Printf("Couldn't decode attachment %v:%v. Here's why: %v\n", bucketName, messageID, err)
@@ -61,37 +61,13 @@ func ParseNewMail(bucketName, messageID string) (*model.AggregateReport, error) 
 	return feedback, err
 }
 
-func DecoderAggregateReport(attachment io.Reader, messageID string) (*model.AggregateReport, error) {
+func DecoderAggregateReport(attachment io.Reader) (*model.AggregateReport, error) {
 	feedback := &model.AggregateReport{}
 	decoder := xml.NewDecoder(attachment)
 	decoder.CharsetReader = charset.NewReaderLabel
 	if err := decoder.Decode(feedback); err != nil {
 		return nil, err
 	}
-
-	feedback.MessageID = messageID
-
-	for num := range feedback.Records {
-		record := &feedback.Records[num]
-		record.AggregateReportID = messageID
-		record.RecordNumber = int64(num)
-
-		for i := range record.AuthDKIM {
-			record.AuthDKIM[i].AggregateReportID = record.AggregateReportID
-			record.AuthDKIM[i].RecordNumber = record.RecordNumber
-		}
-
-		for i := range record.AuthSPF {
-			record.AuthSPF[i].AggregateReportID = record.AggregateReportID
-			record.AuthSPF[i].RecordNumber = record.RecordNumber
-		}
-
-		for i := range record.POReason {
-			record.POReason[i].AggregateReportID = record.AggregateReportID
-			record.POReason[i].RecordNumber = record.RecordNumber
-		}
-	}
-
 	return feedback, nil
 }
 
@@ -245,13 +221,13 @@ func DmarcReportPrepareAttachment(f io.Reader) (io.Reader, error) {
 	return nil, fmt.Errorf("PrepareAttachment: reached the end, no attachment found.")
 }
 
-func ParseDmarcReport(feedback *model.AggregateReport) []*model.DmarcReportingFull {
-	reports := make([]*model.DmarcReportingFull, 0)
-	for _, record := range feedback.Records {
+func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*model.DmarcReportingEntry {
+	reports := make([]*model.DmarcReportingEntry, 0)
+	for i, record := range feedback.Records {
 		sbGeo := senderbase.SenderbaseIPData(record.SourceIP)
-		reporting := &model.DmarcReportingFull{
-			MessageID:         feedback.MessageID,
-			RecordNumber:      record.RecordNumber,
+		reporting := &model.DmarcReportingEntry{
+			MessageID:         messageID,
+			RecordNumber:      int64(i),
 			Domain:            feedback.Domain,
 			Policy:            feedback.Policy,
 			SubdomainPolicy:   feedback.SubdomainPolicy,
