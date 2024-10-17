@@ -13,7 +13,7 @@ func main() {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	fmt.Printf("conn dev db err: %+v\n", err)
 	err = db.AutoMigrate(
-		&model.DmarcReportingEntry{},
+		&model.DmarcReportEntry{},
 	)
 	fmt.Printf("create table in dev db err: %+v\n", err)
 }

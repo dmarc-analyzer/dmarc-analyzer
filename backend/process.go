@@ -221,11 +221,11 @@ func DmarcReportPrepareAttachment(f io.Reader) (io.Reader, error) {
 	return nil, fmt.Errorf("PrepareAttachment: reached the end, no attachment found.")
 }
 
-func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*model.DmarcReportingEntry {
-	reports := make([]*model.DmarcReportingEntry, 0)
+func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*model.DmarcReportEntry {
+	reports := make([]*model.DmarcReportEntry, 0)
 	for i, record := range feedback.Records {
 		sbGeo := senderbase.SenderbaseIPData(record.SourceIP)
-		reporting := &model.DmarcReportingEntry{
+		reporting := &model.DmarcReportEntry{
 			MessageID:         messageID,
 			RecordNumber:      int64(i),
 			Domain:            feedback.Domain,
