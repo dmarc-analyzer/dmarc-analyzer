@@ -250,7 +250,7 @@ func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*mode
 			ESP:               sbGeo.ESP,
 			HostName:          sbGeo.Hostname,
 			DomainName:        sbGeo.DomainName,
-			HostnameMatchesIP: sbGeo.HostnameMatchesIP,
+			HostNameMatchesIP: sbGeo.HostnameMatchesIP,
 			City:              sbGeo.City,
 			State:             sbGeo.State,
 			Country:           sbGeo.Country,
