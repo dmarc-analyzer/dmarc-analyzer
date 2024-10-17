@@ -95,17 +95,7 @@ func (d DmarcReportingDefault) Label() (source string, sourceType string) {
 	} else if len(d.HostName) > 0 {
 		source = d.HostName
 		sourceType = "HostName"
-	} else if len(d.ReverseLookup) > 0 && len(d.ReverseLookup[0]) > 0 {
-		revsource, _ := util.GetOrgDomain(d.ReverseLookup[0])
-		if len(revsource) > 0 {
-			revsource = strings.TrimRight(revsource, ".")
-			if len(revsource) > 0 {
-				source = revsource
-				sourceType = "ReverseLookup"
-			}
-		}
 	}
-
 	return
 }
 
@@ -142,9 +132,10 @@ func (d DmarcReportingSummaryList) Less(i, j int) bool {
 
 // QSummary is a summary view of dmarc evaluations per sender
 // Possible cases to consider:
-// 1.  Sender company name is resolved        -> use name
-// 2.  Sender domain but not name is resolved -> use domain
-// 3.  Sender domain and name both unresolved -> use IP
+// 1. Sender company name is resolved        -> use email sender provider name (ESP)
+// 2. Sender domain but not name is resolved -> use org domain
+// 3. Sender domain and name both unresolved -> use HostName
+// 4. Sender domain and name both unresolved -> use IP
 func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, DomainSummaryCounts) {
 
 	summaryRowMax := 1000
