@@ -536,26 +536,18 @@ func getDmarcDailyAll(domain string, timeBegin, timeEnd int64) ([]*DmarcDailyBuc
 	days := (timeEnd - timeBegin) / 86400
 	timeEnd = timeBegin + (days * 86400)
 
-	fmt.Fprintf(os.Stderr, "days calculated: %d", days)
+	err := db.DB.Model(&model.DmarcReportingFull{}).
+		Select(`width_bucket(end_date, $1, $2, $3) as day,
+SUM(case when eval_dkim = 'pass' or eval_spf = 'pass' then message_count else 0 end) as passing,
+SUM(case when eval_dkim != 'pass' and eval_spf != 'pass' then message_count else 0 end) as failing`).
+		Where("end_date >= $1 AND end_date < $2 AND domain = $4", timeBegin, timeEnd, days, domain).
+		Group("day").
+		Order("day").
+		Scan(&results).Error
 
-	qsql := `
-	select width_bucket(ar."date_range_end", $1, $2, $3) as day,
-	SUM(case when arr."eval_dkim" = 'pass' or arr."eval_spf" = 'pass' then arr."count" else 0 end) as passing,
-	SUM(case when arr."eval_dkim" != 'pass' and arr."eval_spf" != 'pass' then arr."count" else 0 end) as failing
-	FROM "aggregate_report_records" arr JOIN "aggregate_reports" ar ON arr."aggregate_report_id"=ar."message_id"
-	WHERE ar."date_range_end" >= $1 AND ar."date_range_end" < $2 AND ar."domain" = $4
-	group by day
-	order by day`
-
-	err := db.DB.Raw(qsql, timeBegin, timeEnd, days, domain).Scan(&results).Error
 	if err != nil {
 		log.Fatalf("Query failed: %v", err)
 	}
 
-	if err != nil {
-		return results, err
-	}
-
 	return results, err
-
 }
