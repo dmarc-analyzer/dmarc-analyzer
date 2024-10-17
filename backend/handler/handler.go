@@ -18,7 +18,7 @@ func HandleDomainList(c *gin.Context) {
 	var domains []string
 	err := db.DB.Model(&model.DmarcReportEntry{}).Select("distinct(domain)").Pluck("domain", &domains).Error
 	if err != nil {
-		log.Fatalf("Query failed: %v", err)
+		log.Printf("Query failed: %v", err)
 	}
 	c.JSON(200, domains)
 }
@@ -148,7 +148,7 @@ func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, D
 		Group("source_ip, esp, domain_name, reverse_lookup, country, disposition, eval_dkim, eval_spf").
 		Scan(&drArray).Error
 	if err != nil {
-		log.Fatalf("Query failed: %v", err)
+		log.Printf("Query failed: %v", err)
 	}
 
 	//----------------------------------------------------------------
@@ -323,7 +323,7 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
 		Scan(&drArray).Error
 
 	if err != nil {
-		log.Fatalf("Query failed: %v", err)
+		log.Printf("Query failed: %v", err)
 	}
 
 	return drArray
@@ -476,7 +476,7 @@ SUM(case when eval_dkim != 'pass' and eval_spf != 'pass' then message_count else
 		Scan(&results).Error
 
 	if err != nil {
-		log.Fatalf("Query failed: %v", err)
+		log.Printf("Query failed: %v", err)
 	}
 
 	return results, err
