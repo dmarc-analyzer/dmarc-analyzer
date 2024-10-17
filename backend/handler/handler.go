@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -399,5 +400,162 @@ AND dre.end_date <= $3
 }
 
 func HandleDmarcChart(c *gin.Context) {
+	domain := c.Param("domain")
+	startDate := c.Query("start")
+	endDate := c.Query("end")
+
+	start, end := util.ParseDate(startDate, endDate)
+	result, err := GetDmarcChartData(start, end, domain)
+	if err != nil {
+		fmt.Printf("GetDmarcChartData error: %+v", err)
+	}
+	c.JSON(200, result)
+}
+
+type daily struct {
+	Name   string   `json:"name"`
+	Series []Volume `json:"series"`
+}
+
+// Volume Name is the timestamp, Value is the pass/fail quantity on that day
+type Volume struct {
+	Name  int64 `json:"name"`
+	Value int64 `json:"value"`
+}
+
+type DmarcChartResp struct {
+	ChartData []daily `json:"chartdata"`
+	Domain    string  `json:"domain"`
+}
+
+func GetDmarcChartData(start, end int64, domain string) (*DmarcChartResp, error) {
+
+	rawData, err := GetDmarcDatedWeeklyChart(domain, start, end)
+
+	if err != nil {
+		log.Printf("ERROR on GetDmarcDatedWeeklyChart, %s", err)
+	}
+
+	chartData := []daily{}
+	chartData = append(chartData, daily{Name: "pass", Series: []Volume{}})
+	chartData = append(chartData, daily{Name: "fail", Series: []Volume{}})
+
+	for i, val := range rawData.Full {
+		timestamp, _ := val[0].(int64)
+		pass, _ := rawData.Pass[i][1].(int64)
+		fail, _ := rawData.Fail[i][1].(int64)
+
+		chartData[0].Series = append(chartData[0].Series, Volume{Name: timestamp, Value: pass})
+		chartData[1].Series = append(chartData[1].Series, Volume{Name: timestamp, Value: fail})
+
+	}
+
+	retVal := &DmarcChartResp{
+		ChartData: chartData,
+		Domain:    domain,
+	}
+
+	return retVal, err
+}
+
+// ChartContainer structure of result
+type ChartContainer struct {
+	Full []result `json:"full"`
+	Pass []result `json:"pass"`
+	Fail []result `json:"fail"`
+}
+
+type result []interface{}
+
+// GetDmarcDatedWeeklyChart returns the weekly dmarc data
+func GetDmarcDatedWeeklyChart(domain string, start, end int64) (ChartContainer, error) {
+	var chart ChartContainer
+
+	if start == 0 || end == 0 {
+		now := time.Now()
+		end = now.UTC().Unix()
+		start = now.UTC().AddDate(0, 0, -30).Unix()
+	}
+
+	dailyResults, err := getDmarcDailyAll(domain, start, end)
+	if err != nil {
+		return chart, err
+	}
+
+	fmt.Fprintf(os.Stderr, "number of days returned : %d\n %v", len(dailyResults), dailyResults)
+
+	var currentTime int64
+	var lastDay int64
+	for _, day := range dailyResults {
+
+		//Pad the graph with 0 days to keep entries for every day.
+		for lastDay++; lastDay < day.Day; lastDay++ {
+			currentTime = ((lastDay * 86000) + start) * 1000
+			chart.Full = append(chart.Full, result{currentTime, 0})
+			chart.Pass = append(chart.Pass, result{currentTime, 0})
+			chart.Fail = append(chart.Fail, result{currentTime, 0})
+		}
+
+		currentTime = ((day.Day * 86000) + start) * 1000
+		chart.Full = append(chart.Full, result{currentTime, day.Passing + day.Failing})
+		chart.Pass = append(chart.Pass, result{currentTime, day.Passing})
+		chart.Fail = append(chart.Fail, result{currentTime, day.Failing})
+	}
+
+	//Pad the end of the graph with 0 days to keep entries for every day.
+	//NOTE: this padding and the loop above could probably be solved by using a generated series in the query
+	if currentTime > 0 {
+		if currentTime+(86000*1000) < end*1000 {
+			log.Println("Padding end of the chart. Current", currentTime, " and end ", end)
+		} else {
+			log.Println("No chart padding required. Current", currentTime, " and end ", end)
+		}
+		for currentTime += 86000 * 1000; currentTime < end*1000; currentTime += 86000 * 1000 {
+			chart.Full = append(chart.Full, result{currentTime, 0})
+			chart.Pass = append(chart.Pass, result{currentTime, 0})
+			chart.Fail = append(chart.Fail, result{currentTime, 0})
+		}
+	} else {
+		log.Println("No data returned")
+	}
+
+	return chart, nil
+}
+
+type DmarcDailyBuckets struct {
+	Day     int64
+	Passing int64
+	Failing int64
+}
+
+func getDmarcDailyAll(domain string, timeBegin, timeEnd int64) ([]*DmarcDailyBuckets, error) {
+
+	var results []*DmarcDailyBuckets
+
+	//Normalize on day boundaries, using the start time as the boundary.
+	days := (timeEnd - timeBegin) / 86400
+	timeEnd = timeBegin + (days * 86400)
+
+	fmt.Fprintf(os.Stderr, "days calculated: %d", days)
+
+	qsql := `
+	select width_bucket(ar."date_range_end", $1, $2, $3) as day,
+	SUM(case when arr."eval_dkim" = 'pass' or arr."eval_spf" = 'pass' then arr."count" else 0 end) as passing,
+	SUM(case when arr."eval_dkim" != 'pass' and arr."eval_spf" != 'pass' then arr."count" else 0 end) as failing
+	FROM "aggregate_report_records" arr JOIN "aggregate_reports" ar ON arr."aggregate_report_id"=ar."message_id"
+	WHERE ar."date_range_end" >= $1 AND ar."date_range_end" < $2 AND ar."domain" = $4
+	group by day
+	order by day`
+
+	err := db.DB.Raw(qsql, timeBegin, timeEnd, days, domain).Scan(&results).Error
+	if err != nil {
+		log.Fatalf("Query failed: %v", err)
+	}
+
+	if err != nil {
+		return results, err
+	}
+
+	return results, err
 
 }
