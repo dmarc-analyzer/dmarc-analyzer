@@ -13,7 +13,6 @@ import (
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/model"
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/util"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/net/publicsuffix"
 )
 
 func HandleDomainList(c *gin.Context) {
@@ -32,26 +31,18 @@ func HandleDomainSummary(c *gin.Context) {
 
 	start, end := util.ParseDate(startDate, endDate)
 
-	gr := DomainSummaryResp{
-		Domain: domain,
-	}
-
-	summary := []DmarcReportingSummary{}
-	counts := DomainSummaryCounts{}
-
 	// harvest all reports that have been received in the last 'dayCount' days:
+	summary, counts := QSummary(domain, start, end)
 
-	summary, counts = QSummary(domain, start, end)
-
-	gr.StartDate = time.Unix(start, 0).Format(time.RFC3339Nano)
-	gr.EndDate = time.Unix(end, 0).Format(time.RFC3339Nano)
-
-	gr.Summary = summary
-	gr.DomainSummaryCounts = counts
-	if len(summary) > 0 {
-		gr.MaxVolume = summary[0].TotalCount
+	resp := &DomainSummaryResp{
+		Domain:              domain,
+		Summary:             summary,
+		DomainSummaryCounts: counts,
+		StartDate:           time.Unix(start, 0).Format(time.RFC3339Nano),
+		EndDate:             time.Unix(end, 0).Format(time.RFC3339Nano),
 	}
-	c.JSON(200, gr)
+
+	c.JSON(200, resp)
 }
 
 // DmarcReportingSummary structure used on summary table
@@ -105,7 +96,7 @@ func (d DmarcReportingDefault) Label() (source string, sourceType string) {
 		source = d.HostName
 		sourceType = "HostName"
 	} else if len(d.ReverseLookup[0]) > 0 {
-		revsource, _ := GetOrgDomain(d.ReverseLookup[0])
+		revsource, _ := util.GetOrgDomain(d.ReverseLookup[0])
 		if len(revsource) > 0 {
 			revsource = strings.TrimRight(revsource, ".")
 			if len(revsource) > 0 {
@@ -113,41 +104,6 @@ func (d DmarcReportingDefault) Label() (source string, sourceType string) {
 				sourceType = "ReverseLookup"
 			}
 		}
-	}
-
-	return
-}
-
-// GetOrgDomain returns the org domain for the input domain according to the
-// mechanisms of code in the publicsuffix package
-func GetOrgDomain(domain string) (orgDomain string, err error) {
-
-	// trailing periods should be stripped before splitting:
-	domain = strings.TrimRight(domain, ".")
-
-	// resolve organizational domain:
-	icannDomain, isIcann := publicsuffix.PublicSuffix(domain)
-
-	if !isIcann {
-		// bad domain spec
-		//  -- not sure how we will ever be here if HostDomain is compliant
-		err = fmt.Errorf("bad organizational domain: %s", domain)
-		return
-	}
-
-	domainLabels := strings.Split(domain, ".")
-	icannLabels := strings.Split(icannDomain, ".")
-	icl := len(icannLabels)
-	dcl := len(domainLabels)
-	orgDomain = ""
-
-	if dcl-icl <= 1 {
-		// domain is org domain:
-		orgDomain = domain
-		return
-	}
-	for j := dcl - icl - 1; j < dcl; j++ {
-		orgDomain = orgDomain + domainLabels[j] + "."
 	}
 
 	return
@@ -164,7 +120,6 @@ type DMARCStats struct {
 
 type DomainSummaryResp struct {
 	Summary             []DmarcReportingSummary `json:"summary"`
-	MaxVolume           int64                   `json:"max_volume"`
 	DomainSummaryCounts DomainSummaryCounts     `json:"domain_summary_counts"`
 	StartDate           string                  `json:"start_date"`
 	EndDate             string                  `json:"end_date"`
