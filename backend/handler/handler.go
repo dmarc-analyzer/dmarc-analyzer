@@ -231,11 +231,11 @@ func HandleDmarcDetail(c *gin.Context) {
 }
 
 type DmarcDetailResp struct {
-	DetailRows []DmarcReportingForwarded `json:"detail_rows"`
+	DetailRows []DmarcReportingDetail `json:"detail_rows"`
 }
 
-// DmarcReportingForwarded structure feeds the data used to generate detail table
-type DmarcReportingForwarded struct {
+// DmarcReportingDetail structure feeds the data used to generate detail table
+type DmarcReportingDetail struct {
 	Count            int64             `json:"count,omitempty" db:"count"` // used with queries involving SUM(message_count) AS count
 	SourceIP         string            `json:"source_ip" db:"source_ip"`
 	ESP              string            `json:"esp" db:"esp"`
@@ -260,9 +260,9 @@ type DmarcReportingForwarded struct {
 }
 
 // GetDmarcReportDetail returns the dmarc report details used to be shown on detail panel
-func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) []DmarcReportingForwarded {
+func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) []DmarcReportingDetail {
 
-	drArray := []DmarcReportingForwarded{}
+	drArray := []DmarcReportingDetail{}
 
 	var conditionKey string
 	if sourceType == "ESP" {
