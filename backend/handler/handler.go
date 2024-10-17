@@ -95,7 +95,7 @@ func (d DmarcReportingDefault) Label() (source string, sourceType string) {
 	} else if len(d.HostName) > 0 {
 		source = d.HostName
 		sourceType = "HostName"
-	} else if len(d.ReverseLookup[0]) > 0 {
+	} else if len(d.ReverseLookup) > 0 && len(d.ReverseLookup[0]) > 0 {
 		revsource, _ := util.GetOrgDomain(d.ReverseLookup[0])
 		if len(revsource) > 0 {
 			revsource = strings.TrimRight(revsource, ".")
