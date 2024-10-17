@@ -9,7 +9,7 @@ CREATE TABLE dmarc_report_entries (
     align_dkim text,
     align_spf text,
     pct bigint,
-    source_ip text,
+    source_ip inet,
     esp text,
     org_name text,
     org_id text,

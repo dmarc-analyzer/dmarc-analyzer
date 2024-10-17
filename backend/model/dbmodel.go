@@ -9,7 +9,7 @@ type DmarcReportEntry struct {
 	AlignDKIM         string      `json:"align_dkim" gorm:"column:align_dkim"`
 	AlignSPF          string      `json:"align_spf" gorm:"column:align_spf"`
 	Pct               int         `json:"pct" gorm:"column:pct"`
-	SourceIP          string      `json:"source_ip" gorm:"column:source_ip"`
+	SourceIP          Inet        `json:"source_ip" gorm:"column:source_ip"`
 	ESP               string      `json:"esp" gorm:"column:esp"`
 	OrgName           string      `json:"org_name" gorm:"column:org_name"`
 	OrgID             string      `json:"org_id" gorm:"column:org_id"`

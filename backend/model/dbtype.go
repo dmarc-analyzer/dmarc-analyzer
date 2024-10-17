@@ -3,6 +3,8 @@ package model
 import (
 	"database/sql/driver"
 	"errors"
+	"fmt"
+	"net"
 	"strings"
 )
 
@@ -38,4 +40,27 @@ func (a StringArray) Value() (driver.Value, error) {
 
 func (a StringArray) GormDataType() string {
 	return "text[]"
+}
+
+type Inet net.IP
+
+// Value returns value as a string.
+func (ip Inet) Value() (driver.Value, error) {
+	return net.IP(ip).String(), nil
+}
+
+// Scan scans a string value into Inet.
+func (ip *Inet) Scan(value interface{}) error {
+
+	s, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("can' scan: %s", value)
+	}
+	*ip = Inet(net.ParseIP(s))
+	return nil
+}
+
+// GormDataType gorm common data type.
+func (Inet) GormDataType() string {
+	return "inet"
 }
