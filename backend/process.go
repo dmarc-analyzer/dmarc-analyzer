@@ -236,7 +236,7 @@ func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*mode
 			Pct:               feedback.Percentage,
 			StartDate:         feedback.DateRangeBegin,
 			EndDate:           feedback.DateRangeEnd,
-			SourceIP:          record.SourceIP,
+			SourceIP:          model.Inet(net.ParseIP(record.SourceIP)),
 			ReverseLookup:     ResolveAddrNames(record.SourceIP),
 			MessageCount:      record.Count,
 			Disposition:       record.Disposition,
