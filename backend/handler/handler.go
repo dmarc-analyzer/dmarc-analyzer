@@ -316,7 +316,9 @@ type DmarcReportingForwarded struct {
 
 // GetDmarcReportDetail returns the dmarc report details used to be shown on detail panel
 func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) []DmarcReportingForwarded {
-	selectTerm := `
+
+	qargs := []interface{}{domain, start, end, source}
+	qsql := `
 	SELECT 	
 	  SUM(message_count) AS count,
 	  source_ip,
@@ -338,9 +340,23 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
 	  auth_spf_scope,
 	  auth_spf_result,
 	  po_reason,
-	  po_comment`
+	  po_comment
+FROM dmarc_reporting_entries dre cross join lateral unnest(coalesce(nullif(reverse_lookup,'{}'),array[null::text])) as revlookup(i)
+WHERE dre.domain = $1
+AND dre.end_date >= $2
+AND dre.end_date <= $3
+`
 
-	groupTerm := `
+	if net.ParseIP(source) != nil {
+		qsql += `AND source_ip = $4::inet`
+	} else {
+		qsql += `AND (esp = $4 OR
+	( esp = '' AND ( domain_name = $4 OR ( domain_name = '' AND (revlookup.i LIKE $5)))))`
+		source2 := fmt.Sprintf("%s%s%s", "%", source, ".")
+		qargs = append(qargs, source2)
+	}
+
+	qsql += `
 	GROUP BY
 	  source_ip,
 	  esp,
@@ -362,33 +378,8 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
 	  auth_spf_result,
 	  po_reason,
 	  po_comment
+ORDER BY count DESC LIMIT 2500
 	`
-	from := `FROM dmarc_reporting_entries dre cross join lateral unnest(coalesce(nullif(reverse_lookup,'{}'),array[null::text])) as revlookup(i)`
-
-	source2 := fmt.Sprintf("%s%s%s", "%", source, ".")
-
-	qargs := []interface{}{domain, start, end, source}
-
-	var qterm string
-
-	//Dependence here on empty strings instead of nulls, and on the Label() function algorithm.
-	if net.ParseIP(source) != nil {
-		qterm = `AND source_ip = $4::inet`
-	} else {
-		qterm = `AND (esp = $4 OR
-	( esp = '' AND ( domain_name = $4 OR ( domain_name = '' AND (revlookup.i LIKE $5)))))`
-		qargs = append(qargs, source2)
-	}
-
-	qsql := fmt.Sprintf(`%s
-%s
-WHERE dre.domain = $1
-AND dre.end_date >= $2
-AND dre.end_date <= $3
-%s
-`, selectTerm, from, qterm)
-
-	qsql = fmt.Sprintf("%s%s ORDER BY count DESC LIMIT %d", qsql, groupTerm, 2500)
 
 	drArray := []DmarcReportingForwarded{}
 	err := db.DB.Raw(qsql, qargs...).Scan(&drArray).Error
