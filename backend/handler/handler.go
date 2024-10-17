@@ -3,7 +3,6 @@ package handler
 import (
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"sort"
 	"strings"
@@ -263,15 +262,25 @@ type DmarcReportingForwarded struct {
 // GetDmarcReportDetail returns the dmarc report details used to be shown on detail panel
 func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) []DmarcReportingForwarded {
 
-	qargs := []interface{}{domain, start, end, source}
-	qsql := `
-	SELECT 	
+	drArray := []DmarcReportingForwarded{}
+
+	var conditionKey string
+	if sourceType == "ESP" {
+		conditionKey = "esp"
+	} else if sourceType == "DomainName" {
+		conditionKey = "domain"
+	} else if sourceType == "HostName" {
+		conditionKey = "host_name"
+	} else if sourceType == "IP" {
+		conditionKey = "source_ip"
+	}
+
+	err := db.DB.Model(&model.DmarcReportEntry{}).Select(`
 	  SUM(message_count) AS count,
 	  source_ip,
 	  esp,
 	  domain_name,
 	  host_name,
-	  revlookup.i,
 	  country,
 	  disposition,
 	  eval_dkim,
@@ -286,29 +295,14 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
 	  auth_spf_scope,
 	  auth_spf_result,
 	  po_reason,
-	  po_comment
-FROM dmarc_report_entries dre cross join lateral unnest(coalesce(nullif(reverse_lookup,'{}'),array[null::text])) as revlookup(i)
-WHERE dre.domain = $1
-AND dre.end_date >= $2
-AND dre.end_date <= $3
-`
-
-	if net.ParseIP(source) != nil {
-		qsql += `AND source_ip = $4::inet`
-	} else {
-		qsql += `AND (esp = $4 OR
-	( esp = '' AND ( domain_name = $4 OR ( domain_name = '' AND (revlookup.i LIKE $5)))))`
-		source2 := fmt.Sprintf("%s%s%s", "%", source, ".")
-		qargs = append(qargs, source2)
-	}
-
-	qsql += `
-	GROUP BY
+	  po_comment`).
+		Where("domain = ? AND end_date >= ? AND end_date <= ?", domain, start, end).
+		Where(conditionKey+" = ?", source).
+		Group(`
 	  source_ip,
 	  esp,
 	  domain_name,
 	  host_name,
-	  revlookup.i,
 	  country,
 	  disposition,
 	  eval_dkim,
@@ -323,12 +317,11 @@ AND dre.end_date <= $3
 	  auth_spf_scope,
 	  auth_spf_result,
 	  po_reason,
-	  po_comment
-ORDER BY count DESC LIMIT 2500
-	`
+	  po_comment`).
+		Order("count DESC").
+		Limit(2500).
+		Scan(&drArray).Error
 
-	drArray := []DmarcReportingForwarded{}
-	err := db.DB.Raw(qsql, qargs...).Scan(&drArray).Error
 	if err != nil {
 		log.Fatalf("Query failed: %v", err)
 	}
