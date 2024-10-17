@@ -296,7 +296,7 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
 	  auth_spf_result,
 	  po_reason,
 	  po_comment
-FROM dmarc_reporting_entries dre cross join lateral unnest(coalesce(nullif(reverse_lookup,'{}'),array[null::text])) as revlookup(i)
+FROM dmarc_report_entries dre cross join lateral unnest(coalesce(nullif(reverse_lookup,'{}'),array[null::text])) as revlookup(i)
 WHERE dre.domain = $1
 AND dre.end_date >= $2
 AND dre.end_date <= $3
