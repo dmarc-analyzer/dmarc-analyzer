@@ -18,7 +18,7 @@ import (
 
 func HandleDomainList(c *gin.Context) {
 	var domains []string
-	err := db.DB.Model(&model.DmarcReportingEntry{}).Select("distinct(domain)").Pluck("domain", &domains).Error
+	err := db.DB.Model(&model.DmarcReportEntry{}).Select("distinct(domain)").Pluck("domain", &domains).Error
 	if err != nil {
 		log.Fatalf("Query failed: %v", err)
 	}
@@ -197,7 +197,7 @@ func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, D
 	thecounts := DomainSummaryCounts{}
 	drArray := []DmarcReportingDefault{}
 
-	err := db.DB.Model(&model.DmarcReportingEntry{}).
+	err := db.DB.Model(&model.DmarcReportEntry{}).
 		Select("SUM(message_count) AS message_count, source_ip, esp, domain_name, reverse_lookup, country, disposition, eval_dkim, eval_spf").
 		Where("domain = ? AND end_date >= ? AND end_date <= ?", domain, start, end).
 		Group("source_ip, esp, domain_name, reverse_lookup, country, disposition, eval_dkim, eval_spf").
@@ -536,7 +536,7 @@ func getDmarcDailyAll(domain string, timeBegin, timeEnd int64) ([]*DmarcDailyBuc
 	days := (timeEnd - timeBegin) / 86400
 	timeEnd = timeBegin + (days * 86400)
 
-	err := db.DB.Model(&model.DmarcReportingEntry{}).
+	err := db.DB.Model(&model.DmarcReportEntry{}).
 		Select(`width_bucket(end_date, $1, $2, $3) as day,
 SUM(case when eval_dkim = 'pass' or eval_spf = 'pass' then message_count else 0 end) as passing,
 SUM(case when eval_dkim != 'pass' and eval_spf != 'pass' then message_count else 0 end) as failing`).
