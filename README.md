@@ -16,6 +16,6 @@ dropdb --if-exists gen_sql
 ``` sh
 curl http://127.0.0.1:6767/api/domains
 
-curl http://127.0.0.1:6767/api/domains/kingdomjoygames.com/report?start=2024-10-10T00:00:00Z&end=2024-10-20T00:00:00Z
+curl http://127.0.0.1:6767/api/domains/example.com/report?start=2024-10-10T00:00:00Z&end=2024-10-20T00:00:00Z
 
 ```
