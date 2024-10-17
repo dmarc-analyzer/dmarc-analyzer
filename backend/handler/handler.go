@@ -3,12 +3,14 @@ package handler
 import (
 	"fmt"
 	"log"
+	"net"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/db"
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/model"
+	"github.com/dmarc-analyzer/dmarc-analyzer/backend/util"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/net/publicsuffix"
 )
@@ -27,24 +29,7 @@ func HandleDomainSummary(c *gin.Context) {
 	startDate := c.Query("start")
 	endDate := c.Query("end")
 
-	t := time.Now()
-	tStart, err := time.Parse(time.RFC3339Nano, startDate)
-	if err != nil {
-		log.Println("ERROR reading start time", err)
-		tStart = time.Now().AddDate(0, 0, -30)
-	}
-	tEnd, err := time.Parse(time.RFC3339Nano, endDate)
-	if err != nil {
-		log.Println("ERROR reading end time", err)
-		tEnd = time.Now()
-	}
-
-	if tEnd.After(t) {
-		tEnd = t
-	}
-
-	start := tStart.Unix()
-	end := tEnd.Unix()
+	start, end := util.ParseDate(startDate, endDate)
 
 	gr := DomainSummaryResp{
 		Domain: domain,
@@ -57,8 +42,8 @@ func HandleDomainSummary(c *gin.Context) {
 
 	summary, counts = QSummary(domain, start, end)
 
-	gr.StartDate = tStart.Format(time.RFC3339Nano)
-	gr.EndDate = tEnd.Format(time.RFC3339Nano)
+	gr.StartDate = time.Unix(start, 0).Format(time.RFC3339Nano)
+	gr.EndDate = time.Unix(end, 0).Format(time.RFC3339Nano)
 
 	gr.Summary = summary
 	gr.DomainSummaryCounts = counts
@@ -285,7 +270,132 @@ func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, D
 }
 
 func HandleDmarcDetail(c *gin.Context) {
+	domain := c.Param("domain")
+	startDate := c.Query("start")
+	endDate := c.Query("end")
+	source := c.Query("source")
+	sourceType := c.Query("source_type")
 
+	start, end := util.ParseDate(startDate, endDate)
+	result := GetDmarcReportDetail(start, end, domain, source, sourceType)
+
+	c.JSON(200, &DmarcDetailResp{
+		DetailRows: result,
+	})
+}
+
+type DmarcDetailResp struct {
+	DetailRows []DmarcReportingForwarded `json:"detail_rows"`
+}
+
+// DmarcReportingForwarded structure feeds the data used to generate detail table
+type DmarcReportingForwarded struct {
+	Count            int64             `json:"count,omitempty" db:"count"` // used with queries involving SUM(message_count) AS count
+	SourceIP         string            `json:"source_ip" db:"source_ip"`
+	ESP              string            `json:"esp" db:"esp"`
+	DomainName       string            `json:"domain_name" db:"domain_name"`
+	HostName         string            `json:"host_name" db:"host_name"`
+	ReverseLookup    model.StringArray `json:"reverse_lookup" db:"reverse_lookup"`
+	Country          string            `json:"country" db:"country"`
+	Disposition      string            `json:"disposition" db:"disposition"`
+	EvalDKIM         string            `json:"eval_dkim" db:"eval_dkim"`
+	EvalSPF          string            `json:"eval_spf" db:"eval_spf"`
+	HeaderFrom       string            `json:"header_from" db:"header_from"`
+	EnvelopeFrom     string            `json:"envelope_from" db:"envelope_from"`
+	EnvelopeTo       string            `json:"envelope_to" db:"envelope_to"`
+	AuthDKIMDomain   model.StringArray `json:"auth_dkim_domain" db:"auth_dkim_domain"`
+	AuthDKIMSelector model.StringArray `json:"auth_dkim_selector" db:"auth_dkim_selector"`
+	AuthDKIMResult   model.StringArray `json:"auth_dkim_result" db:"auth_dkim_result"`
+	AuthSPFDomain    model.StringArray `json:"auth_spf_domain" db:"auth_spf_domain"`
+	AuthSPFScope     model.StringArray `json:"auth_spf_scope" db:"auth_spf_scope"`
+	AuthSPFResult    model.StringArray `json:"auth_spf_result" db:"auth_spf_result"`
+	POReason         model.StringArray `json:"po_reason" db:"po_reason"`
+	POComment        model.StringArray `json:"po_comment" db:"po_comment"`
+}
+
+// GetDmarcReportDetail returns the dmarc report details used to be shown on detail panel
+func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) []DmarcReportingForwarded {
+	selectTerm := `
+	SELECT 	
+	  SUM(message_count) AS count,
+	  source_ip,
+	  esp,
+	  domain_name,
+	  host_name,
+	  revlookup.i,
+	  country,
+	  disposition,
+	  eval_dkim,
+	  eval_spf,
+	  header_from,
+	  envelope_from,
+	  envelope_to,
+	  auth_dkim_domain,
+	  auth_dkim_selector,
+	  auth_dkim_result,
+	  auth_spf_domain,
+	  auth_spf_scope,
+	  auth_spf_result,
+	  po_reason,
+	  po_comment`
+
+	groupTerm := `
+	GROUP BY
+	  source_ip,
+	  esp,
+	  domain_name,
+	  host_name,
+	  revlookup.i,
+	  country,
+	  disposition,
+	  eval_dkim,
+	  eval_spf,
+	  header_from,
+	  envelope_from,
+	  envelope_to,
+	  auth_dkim_domain,
+	  auth_dkim_selector,
+	  auth_dkim_result,
+	  auth_spf_domain,
+	  auth_spf_scope,
+	  auth_spf_result,
+	  po_reason,
+	  po_comment
+	`
+	from := `FROM dmarc_reporting_fulls dre cross join lateral unnest(coalesce(nullif(reverse_lookup,'{}'),array[null::text])) as revlookup(i)`
+
+	source2 := fmt.Sprintf("%s%s%s", "%", source, ".")
+
+	qargs := []interface{}{domain, start, end, source}
+
+	var qterm string
+
+	//Dependence here on empty strings instead of nulls, and on the Label() function algorithm.
+	if net.ParseIP(source) != nil {
+		qterm = `AND source_ip = $4::inet`
+	} else {
+		qterm = `AND (esp = $4 OR
+	( esp = '' AND ( domain_name = $4 OR ( domain_name = '' AND (revlookup.i LIKE $5)))))`
+		qargs = append(qargs, source2)
+	}
+
+	qsql := fmt.Sprintf(`%s
+%s
+WHERE dre.domain = $1
+AND dre.end_date >= $2
+AND dre.end_date <= $3
+%s
+`, selectTerm, from, qterm)
+
+	qsql = fmt.Sprintf("%s%s ORDER BY count DESC LIMIT %d", qsql, groupTerm, 2500)
+
+	drArray := []DmarcReportingForwarded{}
+	err := db.DB.Raw(qsql, qargs...).Scan(&drArray).Error
+	if err != nil {
+		log.Fatalf("Query failed: %v", err)
+	}
+
+	return drArray
 }
 
 func HandleDmarcChart(c *gin.Context) {
