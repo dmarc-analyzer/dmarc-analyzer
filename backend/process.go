@@ -247,6 +247,8 @@ func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*mode
 			EnvelopeTo:        record.EnvelopeTo,
 			OrgName:           sbGeo.OrgName,
 			OrgID:             sbGeo.OrgID,
+			ESP:               sbGeo.ESP,
+			HostName:          sbGeo.Hostname,
 			DomainName:        sbGeo.DomainName,
 			HostnameMatchesIP: sbGeo.HostnameMatchesIP,
 			City:              sbGeo.City,

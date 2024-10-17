@@ -6,12 +6,15 @@ import (
 	"net"
 	"sort"
 	"strings"
+
+	"github.com/dmarc-analyzer/dmarc-analyzer/backend/util"
 )
 
 type SBGeo struct {
 	OrgName           string `json:"org_name"`
 	OrgID             string `json:"org_id"`
 	OrgCategory       string `json:"org_category"`
+	ESP               string `json:"esp"`
 	Hostname          string `json:"hostname"`
 	DomainName        string `json:"domain_name"`
 	HostnameMatchesIP string `json:"hostname_matches_ip"`
@@ -102,6 +105,13 @@ func SenderbaseIPData(sip string) *SBGeo {
 	sbGeo.Country = sbMap["53"]
 	sbGeo.Longitude = sbMap["54"]
 	sbGeo.Latitude = sbMap["55"]
+
+	if len(sbGeo.Hostname) > 0 && len(sbGeo.DomainName) == 0 {
+		sbGeo.DomainName, _ = util.GetOrgDomain(sbGeo.Hostname)
+	}
+	if len(sbGeo.DomainName) > 0 {
+		sbGeo.ESP = util.GetESP(sbGeo.DomainName)
+	}
 
 	return sbGeo
 }

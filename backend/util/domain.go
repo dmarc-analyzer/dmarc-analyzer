@@ -38,6 +38,20 @@ func GetOrgDomain(domain string) (orgDomain string, err error) {
 	for j := dcl - icl - 1; j < dcl; j++ {
 		orgDomain = orgDomain + domainLabels[j] + "."
 	}
-
+	orgDomain = strings.TrimRight(orgDomain, ".")
 	return
+}
+
+// GetESP returns email service provider
+// https://sendview.io/esp
+// https://sendview.io/top-email-marketing-services-2020
+func GetESP(orgDomain string) string {
+	var esp string
+	switch orgDomain {
+	case "amazonses.com":
+		esp = "Amazon SES"
+	case "google.com":
+		esp = "Google Mail"
+	}
+	return esp
 }
