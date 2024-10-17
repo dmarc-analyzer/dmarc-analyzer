@@ -1,4 +1,4 @@
-package backend
+package model
 
 type AggregateReport struct {
 	MessageID       string                  `gorm:"column:message_id;primaryKey"`

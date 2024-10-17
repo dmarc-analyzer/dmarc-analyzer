@@ -18,11 +18,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/dmarc-analyzer/dmarc-analyzer/backend/model"
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/senderbase"
 	"golang.org/x/net/html/charset"
 )
 
-func ParseNewMail(bucketName, messageID string) (*AggregateReport, error) {
+func ParseNewMail(bucketName, messageID string) (*model.AggregateReport, error) {
 	sdkConfig, err := config.LoadDefaultConfig(context.Background())
 	sdkConfig.Region = "us-east-1"
 	if err != nil {
@@ -60,8 +61,8 @@ func ParseNewMail(bucketName, messageID string) (*AggregateReport, error) {
 	return feedback, err
 }
 
-func DecoderAggregateReport(attachment io.Reader, messageID string) (*AggregateReport, error) {
-	feedback := &AggregateReport{}
+func DecoderAggregateReport(attachment io.Reader, messageID string) (*model.AggregateReport, error) {
+	feedback := &model.AggregateReport{}
 	decoder := xml.NewDecoder(attachment)
 	decoder.CharsetReader = charset.NewReaderLabel
 	if err := decoder.Decode(feedback); err != nil {
@@ -244,11 +245,11 @@ func DmarcReportPrepareAttachment(f io.Reader) (io.Reader, error) {
 	return nil, fmt.Errorf("PrepareAttachment: reached the end, no attachment found.")
 }
 
-func ParseDmarcReport(feedback *AggregateReport) []*DmarcReportingFull {
-	reports := make([]*DmarcReportingFull, 0)
+func ParseDmarcReport(feedback *model.AggregateReport) []*model.DmarcReportingFull {
+	reports := make([]*model.DmarcReportingFull, 0)
 	for _, record := range feedback.Records {
 		sbGeo := senderbase.SenderbaseIPData(record.SourceIP)
-		reporting := &DmarcReportingFull{
+		reporting := &model.DmarcReportingFull{
 			MessageID:         feedback.MessageID,
 			RecordNumber:      record.RecordNumber,
 			Domain:            feedback.Domain,
