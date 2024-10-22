@@ -236,7 +236,7 @@ type DmarcDetailResp struct {
 
 // DmarcReportingDetail structure feeds the data used to generate detail table
 type DmarcReportingDetail struct {
-	Count            int64             `json:"count,omitempty" db:"count"` // used with queries involving SUM(message_count) AS count
+	Count            int64             `json:"message_count,omitempty" db:"count"` // used with queries involving SUM(message_count) AS count
 	SourceIP         string            `json:"source_ip" db:"source_ip"`
 	ESP              string            `json:"esp" db:"esp"`
 	DomainName       string            `json:"domain_name" db:"domain_name"`
