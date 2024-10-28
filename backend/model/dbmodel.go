@@ -3,6 +3,7 @@ package model
 type DmarcReportEntry struct {
 	MessageID         string      `json:"message_id" gorm:"primaryKey"`
 	RecordNumber      int64       `json:"record_number" gorm:"primaryKey"`
+	ReportOrgName     string      `json:"report_org_name"`
 	Domain            string      `json:"domain"`
 	Policy            string      `json:"policy"`
 	SubdomainPolicy   string      `json:"subdomain_policy"`

@@ -237,6 +237,7 @@ type DmarcDetailResp struct {
 // DmarcReportingDetail structure feeds the data used to generate detail table
 type DmarcReportingDetail struct {
 	Count            int64             `json:"message_count,omitempty" db:"count"` // used with queries involving SUM(message_count) AS count
+	ReportOrgName    string            `json:"report_org_name" db:"report_org_name"`
 	SourceIP         string            `json:"source_ip" db:"source_ip"`
 	ESP              string            `json:"esp" db:"esp"`
 	DomainName       string            `json:"domain_name" db:"domain_name"`
@@ -277,6 +278,7 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
 
 	err := db.DB.Model(&model.DmarcReportEntry{}).Select(`
 	  SUM(message_count) AS count,
+      report_org_name,
 	  source_ip,
 	  esp,
 	  domain_name,
@@ -299,6 +301,7 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
 		Where("domain = ? AND end_date >= ? AND end_date <= ?", domain, start, end).
 		Where(conditionKey+" = ?", source).
 		Group(`
+      report_org_name,
 	  source_ip,
 	  esp,
 	  domain_name,
