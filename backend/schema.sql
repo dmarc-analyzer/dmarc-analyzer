@@ -3,6 +3,7 @@
 CREATE TABLE dmarc_report_entries (
     message_id text NOT NULL,
     record_number bigint NOT NULL,
+    report_org_name text,
     domain text,
     policy text,
     subdomain_policy text,

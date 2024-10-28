@@ -1,7 +1,7 @@
 package model
 
 type AggregateReport struct {
-	Organization    string                  `xml:"report_metadata>org_name"`
+	ReportOrgName   string                  `xml:"report_metadata>org_name"`
 	Email           string                  `xml:"report_metadata>email"`
 	ExtraContact    string                  `xml:"report_metadata>extra_contact_info"`
 	ReportID        string                  `xml:"report_metadata>report_id"`

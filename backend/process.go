@@ -228,6 +228,7 @@ func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*mode
 		reporting := &model.DmarcReportEntry{
 			MessageID:         messageID,
 			RecordNumber:      int64(i),
+			ReportOrgName:     feedback.ReportOrgName,
 			Domain:            feedback.Domain,
 			Policy:            feedback.Policy,
 			SubdomainPolicy:   feedback.SubdomainPolicy,
