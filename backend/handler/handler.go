@@ -466,7 +466,7 @@ func getDmarcDailyAll(domain string, timeBegin, timeEnd int64) ([]*DmarcDailyBuc
 	var results []*DmarcDailyBuckets
 
 	//Normalize on day boundaries, using the start time as the boundary.
-	days := (timeEnd - timeBegin) / 86400
+	days := ((timeEnd - timeBegin) / 86400) + 1
 	timeEnd = timeBegin + (days * 86400)
 
 	err := db.DB.Model(&model.DmarcReportEntry{}).
