@@ -6,8 +6,6 @@ import (
 	"net"
 	"sort"
 	"strings"
-
-	"github.com/dmarc-analyzer/dmarc-analyzer/backend/util"
 )
 
 type SBGeo struct {
@@ -49,7 +47,7 @@ func SenderbaseIPData(sip string) *SBGeo {
 	// convert from string input to net.IP:
 	ip := net.ParseIP(sip).To4()
 	if ip == nil {
-		log.Println("ip6 address")
+		log.Printf("ip6 address: %s\n", sip)
 		return nil
 	}
 
@@ -105,13 +103,6 @@ func SenderbaseIPData(sip string) *SBGeo {
 	sbGeo.Country = sbMap["53"]
 	sbGeo.Longitude = sbMap["54"]
 	sbGeo.Latitude = sbMap["55"]
-
-	if len(sbGeo.Hostname) > 0 && len(sbGeo.DomainName) == 0 {
-		sbGeo.DomainName, _ = util.GetOrgDomain(sbGeo.Hostname)
-	}
-	if len(sbGeo.DomainName) > 0 {
-		sbGeo.ESP = util.GetESP(sbGeo.DomainName)
-	}
 
 	return sbGeo
 }
