@@ -20,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/model"
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/senderbase"
+	"github.com/dmarc-analyzer/dmarc-analyzer/backend/util"
 	"golang.org/x/net/html/charset"
 )
 
@@ -225,6 +226,19 @@ func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*mode
 	reports := make([]*model.DmarcReportEntry, 0)
 	for i, record := range feedback.Records {
 		sbGeo := senderbase.SenderbaseIPData(record.SourceIP)
+		if sbGeo == nil {
+			sbGeo = &senderbase.SBGeo{}
+		}
+		reverseLookupList, _ := net.LookupAddr(record.SourceIP)
+		if len(reverseLookupList) > 0 {
+			sbGeo.Hostname = reverseLookupList[0]
+		}
+		if len(sbGeo.Hostname) > 0 && len(sbGeo.DomainName) == 0 {
+			sbGeo.DomainName, _ = util.GetOrgDomain(sbGeo.Hostname)
+		}
+		if len(sbGeo.DomainName) > 0 {
+			sbGeo.ESP = util.GetESP(sbGeo.DomainName)
+		}
 		reporting := &model.DmarcReportEntry{
 			MessageID:         messageID,
 			RecordNumber:      int64(i),
@@ -238,7 +252,7 @@ func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*mode
 			StartDate:         feedback.DateRangeBegin,
 			EndDate:           feedback.DateRangeEnd,
 			SourceIP:          model.Inet(net.ParseIP(record.SourceIP)),
-			ReverseLookup:     ResolveAddrNames(record.SourceIP),
+			ReverseLookup:     reverseLookupList,
 			MessageCount:      record.Count,
 			Disposition:       record.Disposition,
 			EvalDKIM:          record.EvalDKIM,

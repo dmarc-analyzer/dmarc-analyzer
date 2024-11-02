@@ -11,6 +11,10 @@ import (
 func main() {
 	messageIDList := []string{}
 
+	dsn := "host=localhost user=postgres password=postgres dbname=dmarc sslmode=disable"
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	fmt.Printf("%+v\n", err)
+
 	for _, messageID := range messageIDList {
 		feedback, err := backend.ParseNewMail("", messageID)
 		fmt.Printf("%+v %+v\n", feedback, err)
@@ -18,9 +22,6 @@ func main() {
 		reports := backend.ParseDmarcReport(feedback, messageID)
 		fmt.Printf("%+v\n", reports)
 
-		dsn := "host=localhost user=postgres password=postgres dbname=dmarc sslmode=disable"
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		fmt.Printf("%+v\n", err)
 		result := db.Create(reports)
 		if result.Error != nil {
 			fmt.Printf("%+v\n", result.Error)

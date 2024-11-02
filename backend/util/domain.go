@@ -52,6 +52,8 @@ func GetESP(orgDomain string) string {
 		esp = "Amazon SES"
 	case "google.com":
 		esp = "Google Mail"
+	case "rsgsv.net", "mcsv.net", "mcdlv.net":
+		esp = "MailChimp"
 	}
 	return esp
 }
