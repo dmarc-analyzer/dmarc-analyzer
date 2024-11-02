@@ -9,18 +9,17 @@ import (
 )
 
 type SBGeo struct {
-	OrgName           string `json:"org_name"`
-	OrgID             string `json:"org_id"`
-	OrgCategory       string `json:"org_category"`
-	ESP               string `json:"esp"`
-	Hostname          string `json:"hostname"`
-	DomainName        string `json:"domain_name"`
-	HostnameMatchesIP string `json:"hostname_matches_ip"`
-	City              string `json:"city"`
-	State             string `json:"state"`
-	Country           string `json:"country"`
-	Longitude         string `json:"longitude"`
-	Latitude          string `json:"latitude"`
+	OrgName     string
+	OrgID       string
+	OrgCategory string
+	ESP         string
+	Hostname    string
+	DomainName  string
+	City        string
+	State       string
+	Country     string
+	Longitude   string
+	Latitude    string
 }
 
 type revIP4 struct {
@@ -97,7 +96,6 @@ func SenderbaseIPData(sip string) *SBGeo {
 	sbGeo.OrgCategory = sbMap["5"]
 	sbGeo.Hostname = strings.ToLower(sbMap["20"])
 	sbGeo.DomainName = strings.ToLower(sbMap["21"])
-	sbGeo.HostnameMatchesIP = sbMap["22"]
 	sbGeo.City = sbMap["50"]
 	sbGeo.State = sbMap["51"]
 	sbGeo.Country = sbMap["53"]

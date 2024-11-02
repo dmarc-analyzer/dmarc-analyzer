@@ -46,7 +46,7 @@ func HandleDomainSummary(c *gin.Context) {
 
 // DmarcReportingSummary structure used on summary table
 type DmarcReportingSummary struct {
-	Source               string `json:"source"` // could be name, domain_name, or IP
+	Source               string `json:"source"` // could be esp, domain, host or IP
 	TotalCount           int64  `json:"total_count"`
 	DispositionPassCount int64  `json:"pass_count"`
 	SPFAlignedCount      int64  `json:"spf_aligned_count"`
@@ -69,8 +69,8 @@ type DmarcReportingDefault struct {
 	MessageCount  int64             `json:"message_count"`
 	SourceIP      string            `json:"source_ip"`
 	ESP           string            `json:"esp"`
-	HostName      string            `json:"host_name"`
-	DomainName    string            `json:"domain_name"`
+	SourceHost    string            `json:"source_host"`
+	SourceDomain  string            `json:"source_domain"`
 	Country       string            `json:"country"`
 	Disposition   string            `json:"disposition"`
 	EvalDKIM      string            `json:"eval_dkim"`
@@ -82,18 +82,18 @@ func (d DmarcReportingDefault) Label() (source string, sourceType string) {
 
 	// last resort is to show IP:
 	source = d.SourceIP
-	sourceType = "IP"
+	sourceType = "SourceIP"
 
 	// these are ordered from most-preferred to next-to-least preferred:
 	if len(d.ESP) > 0 {
 		source = d.ESP
 		sourceType = "ESP"
-	} else if len(d.DomainName) > 0 {
-		source = d.DomainName
-		sourceType = "DomainName"
-	} else if len(d.HostName) > 0 {
-		source = d.HostName
-		sourceType = "HostName"
+	} else if len(d.SourceDomain) > 0 {
+		source = d.SourceDomain
+		sourceType = "SourceDomain"
+	} else if len(d.SourceHost) > 0 {
+		source = d.SourceHost
+		sourceType = "SourceHost"
 	}
 	return
 }
@@ -143,9 +143,9 @@ func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, D
 	drArray := []DmarcReportingDefault{}
 
 	err := db.DB.Model(&model.DmarcReportEntry{}).
-		Select("SUM(message_count) AS message_count, source_ip, esp, domain_name, reverse_lookup, country, disposition, eval_dkim, eval_spf").
+		Select("SUM(message_count) AS message_count, source_ip, esp, source_domain, reverse_lookup, country, disposition, eval_dkim, eval_spf").
 		Where("domain = ? AND end_date >= ? AND end_date <= ?", domain, start, end).
-		Group("source_ip, esp, domain_name, reverse_lookup, country, disposition, eval_dkim, eval_spf").
+		Group("source_ip, esp, source_domain, reverse_lookup, country, disposition, eval_dkim, eval_spf").
 		Scan(&drArray).Error
 	if err != nil {
 		log.Printf("Query failed: %v", err)
@@ -240,8 +240,8 @@ type DmarcReportingDetail struct {
 	ReportOrgName    string            `json:"report_org_name" db:"report_org_name"`
 	SourceIP         string            `json:"source_ip" db:"source_ip"`
 	ESP              string            `json:"esp" db:"esp"`
-	DomainName       string            `json:"domain_name" db:"domain_name"`
-	HostName         string            `json:"host_name" db:"host_name"`
+	SourceDomain     string            `json:"source_domain" db:"source_domain"`
+	SourceHost       string            `json:"source_host" db:"source_host"`
 	ReverseLookup    model.StringArray `json:"reverse_lookup" db:"reverse_lookup"`
 	Country          string            `json:"country" db:"country"`
 	Disposition      string            `json:"disposition" db:"disposition"`
@@ -268,11 +268,11 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
 	var conditionKey string
 	if sourceType == "ESP" {
 		conditionKey = "esp"
-	} else if sourceType == "DomainName" {
-		conditionKey = "domain_name"
-	} else if sourceType == "HostName" {
-		conditionKey = "host_name"
-	} else if sourceType == "IP" {
+	} else if sourceType == "SourceDomain" {
+		conditionKey = "source_domain"
+	} else if sourceType == "SourceHost" {
+		conditionKey = "source_host"
+	} else if sourceType == "SourceIP" {
 		conditionKey = "source_ip"
 	}
 
@@ -281,8 +281,8 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
       report_org_name,
 	  source_ip,
 	  esp,
-	  domain_name,
-	  host_name,
+	  source_domain,
+	  source_host,
 	  country,
 	  disposition,
 	  eval_dkim,
@@ -304,8 +304,8 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
       report_org_name,
 	  source_ip,
 	  esp,
-	  domain_name,
-	  host_name,
+	  source_domain,
+	  source_host,
 	  country,
 	  disposition,
 	  eval_dkim,
