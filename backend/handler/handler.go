@@ -269,7 +269,7 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
 	if sourceType == "ESP" {
 		conditionKey = "esp"
 	} else if sourceType == "DomainName" {
-		conditionKey = "domain"
+		conditionKey = "domain_name"
 	} else if sourceType == "HostName" {
 		conditionKey = "host_name"
 	} else if sourceType == "IP" {
