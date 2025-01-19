@@ -16,7 +16,7 @@ func main() {
 	fmt.Printf("%+v\n", err)
 
 	for _, messageID := range messageIDList {
-		feedback, err := backend.ParseNewMail("", messageID)
+		feedback, err := backend.ParseNewMail(messageID)
 		fmt.Printf("%+v %+v\n", feedback, err)
 
 		reports := backend.ParseDmarcReport(feedback, messageID)

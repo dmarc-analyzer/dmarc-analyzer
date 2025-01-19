@@ -4,34 +4,21 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
-	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/dmarc-analyzer/dmarc-analyzer/backend"
+	"github.com/dmarc-analyzer/dmarc-analyzer/backend/db"
+	"github.com/dmarc-analyzer/dmarc-analyzer/backend/model"
+	"github.com/dmarc-analyzer/dmarc-analyzer/backend/s3client"
 )
 
 func main() {
-	cfg, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		log.Fatalf("unable to load SDK config, %v", err)
-	}
-
-	svc := s3.NewFromConfig(cfg)
-
-	bucketName := os.Getenv("S3_BUCKET_NAME")
-	listObjects(svc, bucketName)
-}
-
-func listObjects(svc *s3.Client, bucketName string) {
 	input := &s3.ListObjectsV2Input{
-		Bucket: &bucketName,
+		Bucket: aws.String(s3client.BucketName),
 	}
 
-	paginator := s3.NewListObjectsV2Paginator(svc, input)
-
-	fmt.Printf("Listing items in bucket %s:\n", bucketName)
-
-	var keys []string
+	paginator := s3.NewListObjectsV2Paginator(s3client.S3Client, input)
 
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(context.TODO())
@@ -40,9 +27,29 @@ func listObjects(svc *s3.Client, bucketName string) {
 		}
 
 		for _, obj := range page.Contents {
-			keys = append(keys, *obj.Key)
+			messageID := *obj.Key
+
+			var count int64
+			db.DB.Model(&model.DmarcReportEntry{}).Where("message_id = ?", messageID).Count(&count)
+			if count == 0 {
+				fmt.Printf("need backfill %s\n", messageID)
+				feedback, err := backend.ParseNewMail(messageID)
+				fmt.Printf("%+v %+v\n", feedback, err)
+				if err != nil {
+					continue
+				}
+
+				reports := backend.ParseDmarcReport(feedback, messageID)
+				fmt.Printf("%+v\n", reports)
+
+				result := db.DB.Create(reports)
+				if result.Error != nil {
+					fmt.Printf("%+v\n", result.Error)
+				}
+			} else {
+				fmt.Printf("not need backfill %s\n", messageID)
+			}
+
 		}
 	}
-
-	fmt.Printf("Found %d keys\n", len(keys))
 }
