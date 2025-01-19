@@ -16,46 +16,38 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/model"
+	"github.com/dmarc-analyzer/dmarc-analyzer/backend/s3client"
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/senderbase"
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/util"
 	"golang.org/x/net/html/charset"
 )
 
-func ParseNewMail(bucketName, messageID string) (*model.AggregateReport, error) {
-	sdkConfig, err := config.LoadDefaultConfig(context.Background())
-	sdkConfig.Region = "us-east-1"
-	if err != nil {
-		fmt.Println("Couldn't load default configuration. Have you set up your AWS account?")
-		fmt.Println(err)
-		return nil, err
-	}
-	s3Client := s3.NewFromConfig(sdkConfig)
+func ParseNewMail(messageID string) (*model.AggregateReport, error) {
 
 	params := &s3.GetObjectInput{
-		Bucket: aws.String(bucketName),
+		Bucket: aws.String(s3client.BucketName),
 		Key:    aws.String(messageID),
 	}
-	resp, err := s3Client.GetObject(context.Background(), params)
+	resp, err := s3client.S3Client.GetObject(context.Background(), params)
 
 	if err != nil {
-		fmt.Printf("Couldn't get object %v:%v. Here's why: %v\n", bucketName, messageID, err)
+		fmt.Printf("Couldn't get object %v:%v. Here's why: %v\n", s3client.BucketName, messageID, err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	attachment, err := DmarcReportPrepareAttachment(resp.Body)
 	if err != nil {
-		fmt.Printf("Couldn't prepare attachment %v:%v. Here's why: %v\n", bucketName, messageID, err)
+		fmt.Printf("Couldn't prepare attachment %v:%v. Here's why: %v\n", s3client.BucketName, messageID, err)
 		return nil, err
 	}
 
 	feedback, err := DecoderAggregateReport(attachment)
 
 	if err != nil {
-		fmt.Printf("Couldn't decode attachment %v:%v. Here's why: %v\n", bucketName, messageID, err)
+		fmt.Printf("Couldn't decode attachment %v:%v. Here's why: %v\n", s3client.BucketName, messageID, err)
 		return nil, err
 	}
 
