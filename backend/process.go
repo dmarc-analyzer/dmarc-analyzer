@@ -24,6 +24,18 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
+// ParseNewMail retrieves a DMARC report email from S3 and processes it into a structured format.
+// This function performs the following steps:
+// 1. Retrieves the email message from the S3 bucket using the provided messageID
+// 2. Prepares the attachment by extracting and decompressing it (handles various formats like gzip, zip)
+// 3. Decodes the XML content into an AggregateReport structure
+//
+// Parameters:
+//   - messageID: The unique identifier for the email in the S3 bucket
+//
+// Returns:
+//   - *model.AggregateReport: The structured DMARC report data
+//   - error: Any error encountered during processing
 func ParseNewMail(messageID string) (*model.AggregateReport, error) {
 
 	params := &s3.GetObjectInput{
@@ -54,9 +66,19 @@ func ParseNewMail(messageID string) (*model.AggregateReport, error) {
 	return feedback, err
 }
 
+// DecoderAggregateReport parses the XML content of a DMARC report into a structured format.
+// It handles different character encodings that might be present in the XML data.
+//
+// Parameters:
+//   - attachment: An io.Reader containing the XML content of the DMARC report
+//
+// Returns:
+//   - *model.AggregateReport: The structured DMARC report data
+//   - error: Any error encountered during XML parsing
 func DecoderAggregateReport(attachment io.Reader) (*model.AggregateReport, error) {
 	feedback := &model.AggregateReport{}
 	decoder := xml.NewDecoder(attachment)
+	// Set a charset reader to handle different encodings in the XML
 	decoder.CharsetReader = charset.NewReaderLabel
 	if err := decoder.Decode(feedback); err != nil {
 		return nil, err
@@ -64,7 +86,17 @@ func DecoderAggregateReport(attachment io.Reader) (*model.AggregateReport, error
 	return feedback, nil
 }
 
-// ExtractZipFile ExtractFile extracts first file from zip archive
+// ExtractZipFile extracts the first file from a ZIP archive.
+// Many DMARC reports are sent as ZIP archives, and this function handles the extraction.
+// The function reads the entire ZIP content into memory, creates a reader for it,
+// and then extracts the first file in the archive.
+//
+// Parameters:
+//   - r: An io.Reader containing the ZIP archive data
+//
+// Returns:
+//   - io.ReadCloser: A reader for the extracted file content
+//   - error: Any error encountered during extraction
 func ExtractZipFile(r io.Reader) (io.ReadCloser, error) {
 	buf := new(bytes.Buffer)
 	_, err := io.Copy(buf, r)
@@ -85,7 +117,24 @@ func ExtractZipFile(r io.Reader) (io.ReadCloser, error) {
 	return zip.File[0].Open()
 }
 
-// DmarcReportPrepareAttachment unzip the dmarc report data, and return the decompressed xml
+// DmarcReportPrepareAttachment processes email attachments containing DMARC reports.
+// This function handles various compression and encoding formats commonly used by
+// different email providers when sending DMARC reports, including:
+// - Multipart emails with attachments
+// - GZIP compressed files (various MIME types)
+// - ZIP compressed files (various MIME types)
+// - Plain XML files
+// - Application/octet-stream with specific file extensions
+//
+// The function detects the format, extracts the content, and returns a reader
+// with the decompressed XML data ready for parsing.
+//
+// Parameters:
+//   - f: An io.Reader containing the email message
+//
+// Returns:
+//   - io.Reader: A reader containing the decompressed XML content
+//   - error: Any error encountered during processing
 func DmarcReportPrepareAttachment(f io.Reader) (io.Reader, error) {
 
 	m, err := mail.ReadMessage(f)
@@ -214,23 +263,42 @@ func DmarcReportPrepareAttachment(f io.Reader) (io.Reader, error) {
 	return nil, fmt.Errorf("PrepareAttachment: reached the end, no attachment found.")
 }
 
+// ParseDmarcReport transforms the XML DMARC report data into database-ready structures.
+// It processes each record in the report, enriches it with additional information:
+// - Geolocation data from SenderBase
+// - Reverse DNS lookups for source IPs
+// - Domain information extraction
+// - Email Service Provider (ESP) identification
+//
+// For each record in the DMARC report, this function:
+// 1. Retrieves geolocation data for the source IP using SenderBase
+// 2. Performs reverse DNS lookups to get hostnames associated with the IP
+// 3. Extracts organizational domain information from hostnames
+// 4. Identifies Email Service Providers based on domain information
+// 5. Combines all this information with the original DMARC report data
+// 6. Creates a database-ready structure for each record
+//
+// Parameters:
+//   - feedback: The parsed AggregateReport structure containing the DMARC report data
+//   - messageID: The unique identifier for the email message (used as a reference in the database)
+//
+// Returns:
+//   - []*model.DmarcReportEntry: An array of database-ready structures containing the processed report data
 func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*model.DmarcReportEntry {
-	reports := make([]*model.DmarcReportEntry, 0)
+	reports := make([]*model.DmarcReportEntry, 0, len(feedback.Records))
+	
+	// Process each record in the DMARC report
 	for i, record := range feedback.Records {
+		// Get geolocation data from SenderBase
 		sbGeo := senderbase.SenderbaseIPData(record.SourceIP)
 		if sbGeo == nil {
 			sbGeo = &senderbase.SBGeo{}
 		}
-		reverseLookupList, _ := net.LookupAddr(record.SourceIP)
-		if len(reverseLookupList) > 0 {
-			sbGeo.Hostname = reverseLookupList[0]
-		}
-		if len(sbGeo.Hostname) > 0 && len(sbGeo.DomainName) == 0 {
-			sbGeo.DomainName, _ = util.GetOrgDomain(sbGeo.Hostname)
-		}
-		if len(sbGeo.DomainName) > 0 {
-			sbGeo.ESP = util.GetESP(sbGeo.DomainName)
-		}
+		
+		// Perform reverse DNS lookups
+		reverseLookupList := model.StringArray(ResolveAddrNames(record.SourceIP))
+		
+		// Create the database entry
 		reporting := &model.DmarcReportEntry{
 			MessageID:       messageID,
 			RecordNumber:    int64(i),
@@ -282,13 +350,21 @@ func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*mode
 	return reports
 }
 
-// AddrNames includes address and its names array
+// AddrNames represents an IP address and its associated DNS names.
+// This structure is used for storing the results of reverse DNS lookups.
 type AddrNames struct {
-	Addr  string
-	Names []string
+	Addr  string   // The IP address
+	Names []string // Array of DNS names associated with the IP address
 }
 
-// ResolveAddrNames returns a struct containging an address and a list of names mapping to it
+// ResolveAddrNames performs a reverse DNS lookup for an IP address.
+// It retrieves all DNS names (PTR records) associated with the given IP address.
+//
+// Parameters:
+//   - addr: The IP address to perform the reverse lookup on
+//
+// Returns:
+//   - []string: An array of DNS names associated with the IP address
 func ResolveAddrNames(addr string) []string {
 	names, _ := net.LookupAddr(addr)
 	return names

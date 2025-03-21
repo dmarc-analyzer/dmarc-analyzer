@@ -1,3 +1,6 @@
+// Package senderbase provides functionality to query the SenderBase database
+// for information about IP addresses, including organization details and geolocation data.
+// SenderBase is a reputation database that provides information about email senders.
 package senderbase
 
 import (
@@ -8,28 +11,39 @@ import (
 	"strings"
 )
 
+// SBGeo represents geolocation and organizational data for an IP address.
+// This structure contains information retrieved from SenderBase about the sender.
 type SBGeo struct {
-	OrgName     string
-	OrgID       string
-	OrgCategory string
-	ESP         string
-	Hostname    string
-	DomainName  string
-	City        string
-	State       string
-	Country     string
-	Longitude   string
-	Latitude    string
+	OrgName     string // Organization name associated with the IP
+	OrgID       string // Organization ID in SenderBase
+	OrgCategory string // Category of the organization (e.g., ISP, hosting provider)
+	ESP         string // Email Service Provider name if applicable
+	Hostname    string // Hostname associated with the IP
+	DomainName  string // Domain name associated with the IP
+	City        string // City location of the IP
+	State       string // State/province location of the IP
+	Country     string // Country location of the IP
+	Longitude   string // Longitude coordinate of the IP
+	Latitude    string // Latitude coordinate of the IP
 }
 
+// revIP4 represents an IPv4 address in reverse byte order.
+// This is used for SenderBase DNS lookups which require reversed IP format.
 type revIP4 struct {
-	Byte   [4]byte
-	String string
+	Byte   [4]byte // The IP address bytes in reverse order
+	String string  // String representation of the reversed IP
 }
 
-// ByteReverseIP4 translates an IP4 into reverse byte order
+// byteReverseIP4 translates an IPv4 address into reverse byte order.
+// This is necessary for querying the SenderBase DNS system which uses
+// reversed IP addresses in its query format.
+//
+// Parameters:
+//   - ip: The IPv4 address to reverse
+//
+// Returns:
+//   - revip: A revIP4 structure containing the reversed IP in both byte and string formats
 func byteReverseIP4(ip net.IP) (revip revIP4) {
-
 	for j := 0; j < len(ip); j++ {
 		revip.Byte[len(ip)-j-1] = ip[j]
 		revip.String = fmt.Sprintf("%d.%s", ip[j], revip.String)
@@ -40,7 +54,15 @@ func byteReverseIP4(ip net.IP) (revip revIP4) {
 	return
 }
 
-// SenderbaseIPData query the senderbase to find out the org name of ip
+// SenderbaseIPData queries the SenderBase database to retrieve information about an IP address.
+// It performs a DNS lookup against the SenderBase DNS system to get organization and geolocation data.
+//
+// Parameters:
+//   - sip: The IP address to query as a string
+//
+// Returns:
+//   - *SBGeo: A pointer to an SBGeo structure containing the retrieved information,
+//     or nil if the lookup failed or the IP is not an IPv4 address
 func SenderbaseIPData(sip string) *SBGeo {
 
 	// convert from string input to net.IP:
@@ -101,6 +123,19 @@ func SenderbaseIPData(sip string) *SBGeo {
 	sbGeo.Country = sbMap["53"]
 	sbGeo.Longitude = sbMap["54"]
 	sbGeo.Latitude = sbMap["55"]
+
+	// If the ESP field is not set but we have organization information,
+	// try to identify common Email Service Providers based on organization name
+	if sbGeo.ESP == "" && sbGeo.OrgName != "" {
+		orgName := strings.ToLower(sbGeo.OrgName)
+		if strings.Contains(orgName, "google") || strings.Contains(orgName, "gmail") {
+			sbGeo.ESP = "Google Mail"
+		} else if strings.Contains(orgName, "amazon") || strings.Contains(orgName, "aws") {
+			sbGeo.ESP = "Amazon SES"
+		} else if strings.Contains(orgName, "mailchimp") {
+			sbGeo.ESP = "MailChimp"
+		}
+	}
 
 	return sbGeo
 }

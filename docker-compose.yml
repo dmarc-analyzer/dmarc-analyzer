@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  dmarc-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "6767:6767"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarcdb
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=dmarcdb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+volumes:
+  postgres-data:
