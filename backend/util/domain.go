@@ -1,3 +1,5 @@
+// Package util provides utility functions for the DMARC analyzer.
+// It includes functions for domain processing, date handling, and other common operations.
 package util
 
 import (
@@ -7,8 +9,20 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-// GetOrgDomain returns the org domain for the input domain according to the
-// mechanisms of code in the publicsuffix package
+// GetOrgDomain returns the organizational domain for the input domain.
+// The organizational domain is the registrable domain plus one label to the left.
+// For example, the organizational domain of "mail.example.com" is "example.com".
+//
+// This function uses the publicsuffix package to determine the registrable domain
+// according to the Public Suffix List (PSL), which contains information about
+// top-level domains and their registration policies.
+//
+// Parameters:
+//   - domain: The domain name to process
+//
+// Returns:
+//   - orgDomain: The organizational domain
+//   - err: Any error encountered during processing
 func GetOrgDomain(domain string) (orgDomain string, err error) {
 
 	// trailing periods should be stripped before splitting:
