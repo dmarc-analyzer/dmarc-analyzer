@@ -30,8 +30,7 @@
             "styles": [
               "src/styles.css",
               "src/theme.scss",
-              "src/flags.min.css",
-              "src/tailwind.css"
+              "src/flags.min.css"
             ],
             "vendorChunk": true,
             "extractLicenses": false,
@@ -91,8 +90,7 @@
             "styles": [
               "src/styles.css",
               "src/theme.scss",
-              "src/flags.min.css",
-              "src/tailwind.css"
+              "src/flags.min.css"
             ],
             "assets": [
               {

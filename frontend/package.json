@@ -26,11 +26,8 @@
     "@ngbracket/ngx-layout": "^17.0.0",
     "@swimlane/ngx-charts": "^20",
     "@swimlane/ngx-datatable": "^20",
-    "autoprefixer": "^10.4.20",
     "core-js": "^2.6",
-    "postcss": "^8.4.47",
     "rxjs": "^6.5",
-    "tailwindcss": "^3.4.14",
     "tslib": "^2.0.0",
     "zone.js": "~0.14.10"
   },

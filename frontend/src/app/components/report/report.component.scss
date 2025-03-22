@@ -28,8 +28,40 @@
 }
 .mat-column-source {
     flex: 5 0;
-    font-size: 1em;
-    text-align: left;
+}
+
+.no-records-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.no-records-message {
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 1rem 0;
+}
+
+.to-top-container {
+    text-align: right;
+    margin-top: 0.5rem;
+    margin-right: 1rem;
+}
+
+.to-top-button {
+    font-size: 1rem;
+    color: #4CAF50;
+    border: none;
+    background: none;
+    outline: none;
+}
+
+.align-top-icon {
+    display: inline-block;
+    position: relative;
+    vertical-align: top;
 }
 .mat-column-messages,
 .mat-column-full,

@@ -13,8 +13,8 @@
   </mat-card>
   <ng-container *ngIf="!hasError">
     <mat-card *ngIf="!chartLoading && !hasChart">
-        <div class="flex items-center justify-center">
-            <div class="text-center text-xl font-semibold leading-tight my-4">No Records Found for this query {{domain}}</div>
+        <div class="no-records-container">
+            <div class="no-records-message">No Records Found for this query {{domain}}</div>
         </div>
     </mat-card>
     <mat-card class="chart-container" *ngIf="hasChart">
@@ -99,9 +99,9 @@
           <mat-row *matRowDef="let  row; let i=index; columns: [ 'source', 'messages', 'percentage', 'full', 'spf', 'dkim'];" class="clickable helloworld"
             (click)="onRowClick($event, row, i ) "></mat-row>
         </mat-table>
-        <div class="text-right mt-2 mr-4">
-          <button class="text-base text-green-600" (click)="toTop(summary)">
-            <mat-icon class="inline-block relative align-top">vertical_align_top</mat-icon>
+        <div class="to-top-container">
+          <button class="to-top-button" (click)="toTop(summary)">
+            <mat-icon class="align-top-icon">vertical_align_top</mat-icon>
               To Top
           </button>
         </div>
