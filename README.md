@@ -238,7 +238,60 @@ Returns data for generating DMARC compliance charts for the specified domain and
 
 ## Deployment
 
-### Using Docker Compose
+### Using Pre-built Docker Image
+
+1. Pull the pre-built Docker image from GitHub Container Registry:
+
+```sh
+docker pull ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+```
+
+2. Create a `docker-compose.yml` file with the following content:
+
+```yaml
+version: '3.8'
+
+services:
+  dmarc-analyzer:
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    ports:
+      - "6767:6767"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarcdb
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=dmarcdb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+volumes:
+  postgres-data:
+```
+
+3. Configure environment variables in a `.env` file in the project root.
+
+4. Start the containers:
+
+```sh
+docker-compose up -d
+```
+
+This will start the DMARC Analyzer server and PostgreSQL database in containers.
+
+### Using Docker Compose with Local Build
 
 1. Make sure Docker and Docker Compose are installed on your system.
 
