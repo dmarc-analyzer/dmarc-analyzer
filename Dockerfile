@@ -1,5 +1,23 @@
-# Use the official Go image as a parent image
-FROM golang:1.24-alpine AS builder
+# Stage 1: Build the frontend
+FROM node:22-alpine AS frontend-builder
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy package.json and yarn.lock files
+COPY frontend/package.json frontend/yarn.lock ./
+
+# Install dependencies
+RUN yarn install
+
+# Copy the frontend source code
+COPY frontend/ ./
+
+# Build the frontend application
+RUN yarn build --configuration=production
+
+# Stage 2: Build the backend
+FROM golang:1.24-alpine AS backend-builder
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -16,7 +34,7 @@ COPY . .
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o dmarc-server ./backend/cmd/server/server.go
 
-# Use a minimal alpine image for the final stage
+# Stage 3: Final image
 FROM alpine:latest
 
 # Install CA certificates for HTTPS connections
@@ -25,8 +43,14 @@ RUN apk --no-cache add ca-certificates
 # Set the working directory
 WORKDIR /root/
 
-# Copy the binary from the builder stage
-COPY --from=builder /app/dmarc-server .
+# Create directory for static files
+RUN mkdir -p /root/static
+
+# Copy the binary from the backend builder stage
+COPY --from=backend-builder /app/dmarc-server .
+
+# Copy the frontend build from the frontend builder stage
+COPY --from=frontend-builder /app/dist/ /root/static/
 
 # Expose the port the server runs on
 EXPOSE 6767
