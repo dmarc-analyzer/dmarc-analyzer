@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"net/http"
-	"path/filepath"
 
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/handler"
 	"github.com/gin-contrib/cors"

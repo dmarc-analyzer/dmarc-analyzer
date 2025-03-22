@@ -32,7 +32,10 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o dmarc-server ./backend/cmd/server/server.go
+RUN CGO_ENABLED=0 GOOS=linux go build ./backend/cmd/server/server.go
+
+# Build the backfill command line tool
+RUN CGO_ENABLED=0 GOOS=linux go build ./backend/cmd/backfill/backfill.go
 
 # Stage 3: Final image
 FROM alpine:latest
@@ -47,7 +50,8 @@ WORKDIR /root/
 RUN mkdir -p /root/static
 
 # Copy the binary from the backend builder stage
-COPY --from=backend-builder /app/dmarc-server .
+COPY --from=backend-builder /app/server .
+COPY --from=backend-builder /app/backfill .
 
 # Copy the frontend build from the frontend builder stage
 COPY --from=frontend-builder /app/dist/ /root/static/
@@ -56,4 +60,4 @@ COPY --from=frontend-builder /app/dist/ /root/static/
 EXPOSE 6767
 
 # Command to run when the container starts
-CMD ["./dmarc-server"]
+CMD ["./server"]
