@@ -20,7 +20,6 @@ import (
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/model"
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/s3client"
 	"github.com/dmarc-analyzer/dmarc-analyzer/backend/senderbase"
-	"github.com/dmarc-analyzer/dmarc-analyzer/backend/util"
 	"golang.org/x/net/html/charset"
 )
 
@@ -286,7 +285,7 @@ func DmarcReportPrepareAttachment(f io.Reader) (io.Reader, error) {
 //   - []*model.DmarcReportEntry: An array of database-ready structures containing the processed report data
 func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*model.DmarcReportEntry {
 	reports := make([]*model.DmarcReportEntry, 0, len(feedback.Records))
-	
+
 	// Process each record in the DMARC report
 	for i, record := range feedback.Records {
 		// Get geolocation data from SenderBase
@@ -294,10 +293,10 @@ func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*mode
 		if sbGeo == nil {
 			sbGeo = &senderbase.SBGeo{}
 		}
-		
+
 		// Perform reverse DNS lookups
 		reverseLookupList := model.StringArray(ResolveAddrNames(record.SourceIP))
-		
+
 		// Create the database entry
 		reporting := &model.DmarcReportEntry{
 			MessageID:       messageID,
