@@ -237,11 +237,64 @@ curl http://127.0.0.1:6767/api/domains/example.com/chart/dmarc?start=2024-10-10T
 
 ## 部署
 
-### 使用 Docker Compose
+### 使用预构建的 Docker 镜像
 
-1. 确保您的系统上已安装 Docker 和 Docker Compose。
+1. 从 GitHub Container Registry 拉取预构建的 Docker 镜像：
 
-2. 在 `docker-compose.yml` 文件中配置环境变量，或在项目根目录中创建一个 `.env` 文件。
+```sh
+docker pull ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+```
+
+2. 创建一个包含以下内容的 `docker-compose.yml` 文件：
+
+```yaml
+version: '3.8'
+
+services:
+  dmarc-analyzer:
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    ports:
+      - "6767:6767"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarcdb
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=dmarcdb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+volumes:
+  postgres-data:
+```
+
+3. 在项目根目录中的 `.env` 文件中配置环境变量。
+
+4. 启动容器：
+
+```sh
+docker-compose up -d
+```
+
+这将在容器中启动 DMARC 分析器服务器和 PostgreSQL 数据库。
+
+### 使用 Docker Compose 进行本地构建
+
+1. 确保您的系统上安装了 Docker 和 Docker Compose。
+
+2. 在 `docker-compose.yml` 文件中配置环境变量或在项目根目录中创建一个 `.env` 文件。
 
 3. 构建并启动容器：
 
