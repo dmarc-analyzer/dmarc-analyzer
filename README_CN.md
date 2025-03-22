@@ -143,6 +143,62 @@ go run ./backend/cmd/backfill/backfill.go
 
 此命令将扫描您的 S3 存储桶中的 DMARC 报告，解析它们，并将数据存储在 PostgreSQL 数据库中。
 
+## 前端设置
+
+DMARC 分析器前端使用 Angular 构建。按照以下步骤设置和运行前端应用程序。
+
+### 1. 前提条件
+
+- Node.js 16 或更高版本
+- Yarn 包管理器
+
+### 2. 安装依赖
+
+导航到前端目录并安装所需的依赖项：
+
+```sh
+cd frontend
+yarn install
+```
+
+### 3. 开发服务器
+
+启动开发服务器：
+
+```sh
+yarn start
+```
+
+默认情况下，这将在端口 4200 上启动 Angular 开发服务器。您可以通过 http://localhost:4200/ 访问应用程序。
+
+### 4. 生产环境构建
+
+要为生产环境构建应用程序：
+
+```sh
+yarn build
+```
+
+构建产物将存储在 `dist/` 目录中。
+
+### 5. 运行测试
+
+执行单元测试：
+
+```sh
+yarn test
+```
+
+运行端到端测试：
+
+```sh
+yarn e2e
+```
+
+### 6. 配置
+
+前端应用程序配置为连接到在端口 6767 上运行的后端 API。如果需要更改此配置，请更新 `src/environments/` 中的环境文件。
+
 ## API 文档
 
 DMARC 分析器提供以下 API 端点：

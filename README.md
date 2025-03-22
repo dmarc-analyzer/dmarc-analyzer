@@ -9,6 +9,7 @@ DMARC Analyzer is a tool for processing and analyzing DMARC (Domain-based Messag
 - [Environment Variables](#environment-variables)
 - [Development Setup](#development-setup)
 - [AWS Service Configuration](#aws-service-configuration)
+- [Frontend Setup](#frontend-setup)
 - [API Documentation](#api-documentation)
 - [Deployment](#deployment)
 
@@ -142,6 +143,62 @@ go run ./backend/cmd/backfill/backfill.go
 ```
 
 This command will scan your S3 bucket for DMARC reports, parse them, and store the data in the PostgreSQL database.
+
+## Frontend Setup
+
+The DMARC Analyzer frontend is built with Angular. Follow these steps to set up and run the frontend application.
+
+### 1. Prerequisites
+
+- Node.js 16 or later
+- Yarn package manager
+
+### 2. Install Dependencies
+
+Navigate to the frontend directory and install the required dependencies:
+
+```sh
+cd frontend
+yarn install
+```
+
+### 3. Development Server
+
+Start the development server:
+
+```sh
+yarn start
+```
+
+By default, this will start the Angular development server on port 4200. You can access the application at http://localhost:4200/.
+
+### 4. Production Build
+
+To build the application for production:
+
+```sh
+yarn build
+```
+
+The build artifacts will be stored in the `dist/` directory.
+
+### 5. Running Tests
+
+Execute unit tests:
+
+```sh
+yarn test
+```
+
+Run end-to-end tests:
+
+```sh
+yarn e2e
+```
+
+### 6. Configuration
+
+The frontend application is configured to connect to the backend API running on port 6767. If you need to change this configuration, update the environment files in `src/environments/`.
 
 ## API Documentation
 

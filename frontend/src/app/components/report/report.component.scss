@@ -1,0 +1,64 @@
+.report-content {
+    width: 100%;
+}
+
+.range-container {
+    padding-top: 17.5px;
+    padding-bottom: 10px;
+    padding-left: 16px;
+    margin-bottom: 10px;
+    display:flex;
+    flex-direction: row;
+}
+
+.chart-container {
+    padding: 0;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+::ng-deep svg {
+    max-height: 300px !important;
+}
+
+.mat-column-domain {
+    flex: 5 0;
+    font-size: 1em;
+    text-align: left;
+}
+.mat-column-source {
+    flex: 5 0;
+    font-size: 1em;
+    text-align: left;
+}
+.mat-column-messages,
+.mat-column-full,
+.mat-column-spf,
+.mat-column-dkim,
+.mat-column-percentage {
+    flex: 2 0;
+    font-size: 1em;
+    justify-content: center;
+    text-align: center;
+}
+
+.spf-alignment-selected-value {
+    margin: 15px 0;
+}
+
+#tableView {
+    width: 100%;
+    overflow-x: scroll;
+}
+
+.clickable {
+    cursor: pointer;
+}
+
+[hidden] {
+    height: 0;
+}
+
+.mat-mdc-row:hover {
+    background-color: lightgray;
+}

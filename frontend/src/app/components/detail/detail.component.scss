@@ -1,0 +1,149 @@
+section {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  
+  .header {
+    height: 72px;
+    background-color: darkgreen;
+    color: white;
+    padding: 10px 10px 10px 15px;
+  }
+  
+  .maintitle {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  
+  .subtitle {
+    font-size: 14px;
+  }
+  
+  .table {
+    height: calc(100% - 72px);
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .table > fm-progress-panel {
+    flex: 1 0 auto;
+  }
+  
+  [mat-dialog-close] {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+  }
+  
+  .table-container {
+    position: relative;
+    overflow: scroll;
+    font-size: 10px;
+    flex: 1 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .table-header {
+    flex: 0 0;
+  }
+  
+  .mat-mdc-cell {
+    font-size: 0.8em;
+    white-space: pre-line;
+  }
+  
+  .mat-column-source_ip {
+    flex: 0 0 155px;
+  }
+  
+  .mat-column-country {
+    flex: 0 0 65px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .mat-column-source_host {
+    flex: 0 0 225px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .mat-column-message_count {
+    flex: 0 0 65px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .mat-column-report_org_name {
+    flex: 0 0 145px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-column-disposition {
+    flex: 0 0 90px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-column-eval_spf {
+    flex: 0 0 50px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-column-auth_spf {
+    flex: 0 0 110px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-column-auth_spf_domain {
+    flex: 0 0 185px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-column-eval_dkim {
+    flex: 0 0 50px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-column-auth_dkim_domain {
+    flex: 0 0 185px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-column-auth_dkim_selector {
+    flex: 0 0 255px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-column-auth_dkim_result {
+    flex: 0 0 120px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-column-po_reason {
+    flex: 0 0 130px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-column-po_comment {
+    flex: 0 0 145px;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .mat-mdc-row:hover {
+    background-color: lightgray;
+  }

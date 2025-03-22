@@ -1,0 +1,37 @@
+<div fxLayout="row" >
+
+  <div class="action"
+       *ngIf="action"
+       fxFlex="0 0 40px">
+    <button mat-icon-button
+            [title]="action"
+            (click)="onaction.emit()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+  </div>
+
+  <div class="header">
+    <div class="title">
+      <div fxLayout = "row" fxLayoutAlign = "space-between">
+        <div>
+          <div class="maintitle">{{title}}</div>
+          <div class="subtitle">{{subtitle}}</div>
+        </div>
+        <div>
+          <br>
+          <a href="https://github.com/dmarc-analyzer/dmarc-analyzer" target="_blank">DMARC Analyzer</a>
+          <br>   
+        </div>
+      </div>
+
+    </div>
+    <div class="home"
+         (click)="homeAction()"
+         style="cursor:pointer">
+      <img src="assets/img/icon-300.png"
+           alt="DMARC Analyzer Logo"
+           height="40px" />
+    </div>
+  </div>
+
+</div>
