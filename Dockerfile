@@ -44,17 +44,17 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 
 # Set the working directory
-WORKDIR /root/
-
-# Create directory for static files
-RUN mkdir -p /root/static
+WORKDIR /app/
 
 # Copy the binary from the backend builder stage
 COPY --from=backend-builder /app/server .
 COPY --from=backend-builder /app/backfill .
 
+# Create directory for static files
+RUN mkdir -p /app/frontend/dist/
+
 # Copy the frontend build from the frontend builder stage
-COPY --from=frontend-builder /app/dist/ /root/static/
+COPY --from=frontend-builder /app/dist/ /app/frontend/dist/
 
 # Expose the port the server runs on
 EXPOSE 6767
