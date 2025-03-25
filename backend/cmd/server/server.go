@@ -30,6 +30,11 @@ func main() {
 	// Serve static files from the ./frontend/dist directory
 	r.Use(static.Serve("/", static.LocalFile("./frontend/dist", false)))
 
+	// Handle SPA routes - serve index.html for any non-API, non-asset routes
+	r.GET("/report/*path", func(c *gin.Context) {
+		c.File("./frontend/dist/index.html")
+	})
+
 	if err := http.ListenAndServe(":6767", r); err != nil {
 		log.Fatalf("start server error: %+v", err)
 	}
