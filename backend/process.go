@@ -286,6 +286,13 @@ func DmarcReportPrepareAttachment(f io.Reader) (io.Reader, error) {
 func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*model.DmarcReportEntry {
 	reports := make([]*model.DmarcReportEntry, 0, len(feedback.Records))
 
+	// Handle special case where the original XML is missing the record field
+	// This ensures that subsequent processing won't fail due to an empty Records array
+	// by adding an empty AggregateReportRecord as a fallback
+	if len(feedback.Records) == 0 {
+		feedback.Records = append(feedback.Records, model.AggregateReportRecord{})
+	}
+
 	// Process each record in the DMARC report
 	for i, record := range feedback.Records {
 		// Get geolocation data from SenderBase
