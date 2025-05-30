@@ -57,16 +57,19 @@ type DmarcReportingSummary struct {
 
 // DomainSummaryCounts structure used on calculating the whole volume and passing rate in the time range of one domain
 type DomainSummaryCounts struct {
-	ReportCount       int64 `json:"report_count"`
-	MessageCount      int64 `json:"message_count"`
-	DKIMAlignedCount  int64 `json:"dkim_aligned_count"`
-	SPFAlignedCount   int64 `json:"spf_aligned_count"`
-	FullyAlignedCount int64 `json:"fully_aligned_count"`
+	TotalCount           int64 `json:"total_count"`
+	DispositionPassCount int64 `json:"pass_count"`
+	SPFAlignedCount      int64 `json:"spf_aligned_count"`
+	DKIMAlignedCount     int64 `json:"dkim_aligned_count"`
+	FullyAlignedCount    int64 `json:"fully_aligned_count"`
+
+	// TODO: need delete
+	MessageCount int64 `json:"message_count"`
 }
 
 // DmarcReportingDefault structure used to
 type DmarcReportingDefault struct {
-	MessageCount  int64             `json:"message_count"`
+	TotalCount    int64             `json:"total_count"`
 	SourceIP      string            `json:"source_ip"`
 	ESP           string            `json:"esp"`
 	SourceHost    string            `json:"source_host"`
@@ -99,7 +102,7 @@ func (d DmarcReportingDefault) Label() (source string, sourceType string) {
 }
 
 type DMARCStats struct {
-	MessageCount         int64
+	TotalCount           int64
 	DispositionPassCount int64
 	SPFAlignedCount      int64
 	DKIMAlignedCount     int64
@@ -139,11 +142,11 @@ func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, D
 
 	summaryRowMax := 1000
 	results := []DmarcReportingSummary{}
-	thecounts := DomainSummaryCounts{}
+	summaryCounts := DomainSummaryCounts{}
 	drArray := []DmarcReportingDefault{}
 
 	err := db.DB.Model(&model.DmarcReportEntry{}).
-		Select("SUM(message_count) AS message_count, source_ip, esp, source_domain, reverse_lookup, country, disposition, eval_dkim, eval_spf").
+		Select("SUM(message_count) AS total_count, source_ip, esp, source_domain, reverse_lookup, country, disposition, eval_dkim, eval_spf").
 		Where("domain = ? AND end_date >= ? AND end_date <= ?", domain, start, end).
 		Group("source_ip, esp, source_domain, reverse_lookup, country, disposition, eval_dkim, eval_spf").
 		Scan(&drArray).Error
@@ -167,18 +170,18 @@ func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, D
 		}
 
 		// keep track of counts by source:
-		countMap[source].MessageCount += dr.MessageCount
+		countMap[source].TotalCount += dr.TotalCount
 		if strings.Compare(dr.EvalDKIM, "pass") == 0 && strings.Compare(dr.EvalSPF, "pass") != 0 {
-			countMap[source].DKIMAlignedCount += dr.MessageCount
-			countMap[source].DispositionPassCount += dr.MessageCount
+			countMap[source].DKIMAlignedCount += dr.TotalCount
+			countMap[source].DispositionPassCount += dr.TotalCount
 		} else if strings.Compare(dr.EvalDKIM, "pass") != 0 && strings.Compare(dr.EvalSPF, "pass") == 0 {
-			countMap[source].SPFAlignedCount += dr.MessageCount
-			countMap[source].DispositionPassCount += dr.MessageCount
+			countMap[source].SPFAlignedCount += dr.TotalCount
+			countMap[source].DispositionPassCount += dr.TotalCount
 		} else if strings.Compare(dr.EvalDKIM, "pass") == 0 && strings.Compare(dr.EvalSPF, "pass") == 0 {
-			countMap[source].DKIMAlignedCount += dr.MessageCount
-			countMap[source].SPFAlignedCount += dr.MessageCount
-			countMap[source].FullyAlignedCount += dr.MessageCount
-			countMap[source].DispositionPassCount += dr.MessageCount
+			countMap[source].DKIMAlignedCount += dr.TotalCount
+			countMap[source].SPFAlignedCount += dr.TotalCount
+			countMap[source].FullyAlignedCount += dr.TotalCount
+			countMap[source].DispositionPassCount += dr.TotalCount
 		}
 
 	}
@@ -187,7 +190,7 @@ func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, D
 	for key, _ := range countMap {
 		summary := DmarcReportingSummary{
 			Source:               key,
-			TotalCount:           countMap[key].MessageCount,
+			TotalCount:           countMap[key].TotalCount,
 			DispositionPassCount: countMap[key].DispositionPassCount,
 			SPFAlignedCount:      countMap[key].SPFAlignedCount,
 			DKIMAlignedCount:     countMap[key].DKIMAlignedCount,
@@ -197,11 +200,15 @@ func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, D
 
 		results = append(results, summary)
 
-		thecounts.MessageCount += countMap[key].MessageCount
-		thecounts.SPFAlignedCount += countMap[key].SPFAlignedCount
-		thecounts.DKIMAlignedCount += countMap[key].DKIMAlignedCount
-		thecounts.FullyAlignedCount += countMap[key].FullyAlignedCount
+		summaryCounts.TotalCount += countMap[key].TotalCount
+		summaryCounts.DispositionPassCount += countMap[key].DispositionPassCount
+		summaryCounts.SPFAlignedCount += countMap[key].SPFAlignedCount
+		summaryCounts.DKIMAlignedCount += countMap[key].DKIMAlignedCount
+		summaryCounts.FullyAlignedCount += countMap[key].FullyAlignedCount
 	}
+
+	// TODO: need delete
+	summaryCounts.MessageCount = summaryCounts.TotalCount
 
 	// sort in descending order by volume:
 	sort.Sort(sort.Reverse(DmarcReportingSummaryList(results))) // don't touch ¯\_(ツ)_/¯
@@ -209,9 +216,9 @@ func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, D
 	// build json:
 
 	if len(results) > summaryRowMax {
-		return results[0 : summaryRowMax-1], thecounts
+		return results[0 : summaryRowMax-1], summaryCounts
 	}
-	return results, thecounts
+	return results, summaryCounts
 
 }
 
