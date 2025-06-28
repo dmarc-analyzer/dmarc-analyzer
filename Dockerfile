@@ -4,17 +4,17 @@ FROM node:22 AS frontend-builder
 # Set the working directory inside the container
 WORKDIR /app
 
-# Copy package.json and yarn.lock files
-COPY frontend/package.json frontend/yarn.lock ./
+# Copy package.json and package-lock.json files
+COPY frontend/package.json frontend/package-lock.json ./
 
 # Install dependencies
-RUN yarn install
+RUN npm install
 
 # Copy the frontend source code
 COPY frontend/ ./
 
 # Build the frontend application
-RUN yarn build --configuration=production
+RUN npm run build
 
 # Stage 2: Build the backend
 FROM golang:1.24-alpine AS backend-builder
