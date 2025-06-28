@@ -11,6 +11,7 @@ permissions: write-all
 
 jobs:
   build:
+    name: Build multi-platform images
     strategy:
       fail-fast: false
       matrix:
