@@ -1,0 +1,45 @@
+// Main SCSS file for DMARC Analyzer
+
+// Variables
+$primary-color: #1976D2;
+$secondary-color: #424242;
+$accent-color: #82B1FF;
+$error-color: #FF5252;
+$info-color: #2196F3;
+$success-color: #4CAF50;
+$warning-color: #FFC107;
+
+// Global styles
+body {
+  font-family: 'Roboto', sans-serif;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+// Custom utility classes
+.text-center {
+  text-align: center;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.mt-4 {
+  margin-top: 1rem;
+}
+
+// Custom component styles
+.dmarc-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .dmarc-container {
+    padding: 0.5rem;
+  }
+}
