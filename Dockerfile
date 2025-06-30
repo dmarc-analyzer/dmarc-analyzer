@@ -31,11 +31,14 @@ RUN go mod download
 # Copy the source code into the container
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build ./backend/cmd/server/server.go
+# Build the main server application
+RUN CGO_ENABLED=0 GOOS=linux go build -o server ./backend/cmd/server/server.go
 
 # Build the backfill command line tool
-RUN CGO_ENABLED=0 GOOS=linux go build ./backend/cmd/backfill/backfill.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o backfill ./backend/cmd/backfill/backfill.go
+
+# Build the SQS consumer
+RUN CGO_ENABLED=0 GOOS=linux go build -o consumer ./backend/cmd/consumer/consumer.go
 
 # Stage 3: Final image
 FROM alpine:latest
@@ -46,9 +49,10 @@ RUN apk --no-cache add ca-certificates
 # Set the working directory
 WORKDIR /app/
 
-# Copy the binary from the backend builder stage
+# Copy the binaries from the backend builder stage
 COPY --from=backend-builder /app/server .
 COPY --from=backend-builder /app/backfill .
+COPY --from=backend-builder /app/consumer .
 
 # Create directory for static files
 RUN mkdir -p /app/frontend/dist/
@@ -59,5 +63,5 @@ COPY --from=frontend-builder /app/dist/ /app/frontend/dist/
 # Expose the port the server runs on
 EXPOSE 6767
 
-# Command to run when the container starts
+# Command to run when the container starts (default to server)
 CMD ["./server"]
