@@ -9,19 +9,20 @@ DMARC Analyzer is a tool for processing and analyzing DMARC (Domain-based Messag
 - [Environment Variables](#environment-variables)
 - [Development Setup](#development-setup)
 - [AWS Service Configuration](#aws-service-configuration)
+- [SQS Message Consumer](#sqs-message-consumer)
 - [Frontend Setup](#frontend-setup)
 - [API Documentation](#api-documentation)
 - [Deployment](#deployment)
 
 ## Overview
 
-DMARC Analyzer processes DMARC aggregate reports that are stored in an S3 bucket. It parses these reports, extracts relevant information, and stores the data in a PostgreSQL database for analysis and visualization.
+DMARC Analyzer processes DMARC aggregate reports that are stored in an S3 bucket. It parses these reports, extracts relevant information, and stores the data in a PostgreSQL database for analysis and visualization. The system supports both manual processing and automated processing via SQS message queues.
 
 ## Prerequisites
 
-- Go 1.18 or later
+- Go 1.24 or later
 - PostgreSQL 14 or later
-- AWS account with S3 access
+- AWS account with S3 and SQS access
 - Docker and Docker Compose (for containerized deployment)
 
 ## Environment Variables
@@ -33,7 +34,8 @@ The application requires the following environment variables:
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dmarcdb
 
 # AWS Configuration
-S3_BUCKET_NAME=your-dmarc-reports-bucket
+S3_BUCKET_NAME=your-dmarc-reports-bucket-name
+SQS_QUEUE_URL=https://sqs.your-aws-region.amazonaws.com/your-aws-account-id/your-dmarc-reports-queue-name
 AWS_ACCESS_KEY_ID=your-aws-access-key
 AWS_SECRET_ACCESS_KEY=your-aws-secret-key
 AWS_REGION=your-aws-region
@@ -91,15 +93,16 @@ The server will start on port 6767 by default.
 
 ### S3 Bucket Setup
 
-1. Create an S3 bucket to store DMARC reports:
+1. **Create an S3 bucket to store DMARC reports:**
    - Sign in to the AWS Management Console
    - Navigate to S3 service
    - Click "Create bucket"
-   - Enter a unique bucket name
+   - Enter a unique bucket name (e.g., `your-org-name-dmarc-reports`)
+   - Choose your preferred region
    - Configure bucket settings as needed
    - Click "Create bucket"
 
-2. Configure IAM permissions:
+2. **Configure IAM permissions:**
    - Create an IAM user or role with the following permissions:
      ```json
      {
@@ -109,30 +112,195 @@ The server will start on port 6767 by default.
            "Effect": "Allow",
            "Action": [
              "s3:GetObject",
-             "s3:ListBucket"
+             "s3:ListBucket",
+             "s3:PutObject"
            ],
            "Resource": [
-             "arn:aws:s3:::your-dmarc-reports-bucket",
-             "arn:aws:s3:::your-dmarc-reports-bucket/*"
+             "arn:aws:s3:::your-dmarc-reports-bucket-name",
+             "arn:aws:s3:::your-dmarc-reports-bucket-name/*"
            ]
          }
        ]
      }
      ```
 
-3. Obtain AWS credentials (Access Key ID and Secret Access Key) for the IAM user.
+3. **Obtain AWS credentials** (Access Key ID and Secret Access Key) for the IAM user.
 
-### Receiving DMARC Reports
+### SQS Queue Setup
 
-To receive DMARC reports in your S3 bucket, you need to:
+1. **Create an SQS queue:**
+   - Navigate to SQS service in AWS Console
+   - Click "Create queue"
+   - Choose "Standard queue"
+   - Enter a queue name (e.g., `dmarc-reports`)
+   - Configure queue settings:
+     - **Visibility timeout**: 30 seconds (recommended)
+     - **Message retention period**: 4 days (default)
+     - **Receive message wait time**: 20 seconds (for long polling)
+   - Click "Create queue"
 
-1. Set up a DMARC record for your domain with the appropriate reporting address
-2. Configure AWS SES to receive emails and store them in your S3 bucket
+2. **Configure SQS Queue Access Policy:**
+   After creating the queue, you need to configure an access policy to allow AWS S3 service to send messages to the queue:
+   
+   - Go to your SQS queue → Permissions tab
+   - Click "Edit" in the Access policy section
+   - Replace the default policy with the following (replace `your-aws-account-id`, `your-aws-region`, and `your-dmarc-reports-bucket-name` with your actual values):
+   
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+           "AWS": "arn:aws:iam::your-aws-account-id:root"
+         },
+         "Action": "SQS:*",
+         "Resource": "arn:aws:sqs:your-aws-region:your-aws-account-id:your-dmarc-reports-queue-name"
+       },
+       {
+         "Sid": "AllowS3ToSendMessages",
+         "Effect": "Allow",
+         "Principal": {
+           "Service": "s3.amazonaws.com"
+         },
+         "Action": "sqs:SendMessage",
+         "Resource": "arn:aws:sqs:your-aws-region:your-aws-account-id:your-dmarc-reports-queue-name",
+         "Condition": {
+           "StringEquals": {
+             "aws:SourceAccount": "your-aws-account-id"
+           }
+         }
+       }
+     ]
+   }
+   ```
+   
+   **Important:** Replace the following placeholders with your actual values:
+   - `your-aws-account-id`: Your AWS account ID
+   - `your-aws-region`: Your AWS region (e.g., us-east-1, eu-west-1)
+   - `your-dmarc-reports-bucket-name`: Your S3 bucket name for DMARC reports (recommended format: `your-org-name-dmarc-reports`)
+   - `your-dmarc-reports-queue-name`: Your SQS queue name (recommended format: `dmarc-reports`)
 
-Example DMARC record:
+3. **Configure IAM permissions for SQS:**
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "sqs:ReceiveMessage",
+           "sqs:DeleteMessage",
+           "sqs:GetQueueAttributes"
+         ],
+         "Resource": "arn:aws:sqs:your-aws-region:your-aws-account-id:your-dmarc-reports-queue-name"
+       }
+     ]
+   }
+   ```
+
+### Setting Up Email Reception and S3 Event Triggers
+
+**Important:** Only S3 delivery method is supported for DMARC report processing. Lambda functions cannot access email attachments and body content, which are essential for parsing DMARC reports.
+
+#### Using AWS SES (Simple Email Service)
+
+1. **Configure SES to receive emails:**
+   - Navigate to SES service in AWS Console
+   - Go to "Email receiving" → "Rule sets"
+   - Create a new rule set or use the default
+   - Create a new rule:
+     - **Recipient**: `dmarc-reports@yourdomain.com`
+     - **Action**: Store in S3 bucket
+     - **S3 bucket**: Select your DMARC reports bucket
+     - **S3 key prefix**: `dmarc-reports/` (optional)
+
+2. **Configure S3 Event Notifications:**
+   - Go to your S3 bucket → Properties → Event notifications
+   - Click "Create event notification"
+   - Configure the event:
+     - **Event name**: `dmarc-email-uploaded`
+     - **Event types**: Select "All object create events"
+     - **Destination**: SQS queue
+     - **SQS queue**: Select your created SQS queue
+   - Click "Save changes"
+
+**Note:** Lambda functions are not suitable for this use case because they cannot access the email attachments and body content that contain the DMARC report data. The S3 delivery method preserves the complete email structure, allowing the DMARC Analyzer to extract and parse the XML reports from email attachments.
+
+### DMARC Record Configuration
+
+To receive DMARC reports, configure your domain's DMARC record:
+
 ```
 _dmarc.example.com. IN TXT "v=DMARC1; p=none; rua=mailto:dmarc-reports@example.com;"
 ```
+
+Make sure the email address in the `rua` field matches the recipient configured in SES.
+
+## SQS Message Consumer
+
+The DMARC Analyzer includes an SQS message consumer that automatically processes new DMARC reports as they arrive.
+
+### Building and Running the Consumer
+
+```sh
+# Build the consumer
+make build-consumer
+
+# Run the consumer
+make run-consumer
+
+# Or build and run in one command
+make run-consumer
+```
+
+### Manual Build and Run
+
+```sh
+# Build
+cd backend
+go build -o ../bin/consumer ./cmd/consumer
+
+# Run
+./bin/consumer
+```
+
+### Consumer Features
+
+- **Automatic message processing**: Continuously polls SQS queue for new messages
+- **Duplicate detection**: Prevents processing the same email multiple times
+- **Error handling**: Graceful error handling with retry logic
+- **Graceful shutdown**: Responds to SIGINT/SIGTERM signals
+- **Detailed logging**: Comprehensive logging for monitoring and debugging
+
+### Environment Variables for Consumer
+
+```bash
+# S3配置
+export S3_BUCKET_NAME="your-dmarc-reports-bucket-name"
+
+# SQS配置
+export SQS_QUEUE_URL="https://sqs.your-aws-region.amazonaws.com/your-aws-account-id/your-dmarc-reports-queue-name"
+
+# 数据库配置
+export DB_HOST="localhost"
+export DB_PORT="5432"
+export DB_USER="your_db_user"
+export DB_PASSWORD="your_db_password"
+export DB_NAME="your_db_name"
+export DB_SSLMODE="disable"
+```
+
+### Workflow
+
+1. **Email Reception**: DMARC reports are sent to your configured email address
+2. **S3 Storage**: SES stores the email in your S3 bucket
+3. **Event Trigger**: S3 event notification sends a message to SQS
+4. **Message Processing**: The consumer picks up the message and processes the email
+5. **Data Extraction**: DMARC report data is extracted and parsed
+6. **Database Storage**: Results are stored in PostgreSQL database
+7. **Message Cleanup**: Successfully processed messages are deleted from the queue
 
 ## Backfilling Reports
 
@@ -259,11 +427,113 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarcdb
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${AWS_REGION}
     depends_on:
       - postgres
+
+  dmarc-consumer:
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    command: ./consumer
+    environment:
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=dmarcdb
+      - DB_SSLMODE=disable
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=dmarcdb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+volumes:
+  postgres-data:
+```
+
+3. Configure environment variables in a `.env` file in the project root:
+
+```bash
+# AWS Configuration
+S3_BUCKET_NAME=your-dmarc-reports-bucket-name
+SQS_QUEUE_URL=https://sqs.your-aws-region.amazonaws.com/your-aws-account-id/your-dmarc-reports-queue-name
+AWS_ACCESS_KEY_ID=your-aws-access-key
+AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+AWS_REGION=your-aws-region
+```
+
+4. Start the containers:
+
+```sh
+docker-compose up -d
+```
+
+This will start the DMARC Analyzer server, SQS consumer, and PostgreSQL database in containers.
+
+### Using Docker Compose with Local Build
+
+1. Make sure Docker and Docker Compose are installed on your system.
+
+2. Create a `docker-compose.yml` file with the following content:
+
+```yaml
+version: '3.8'
+
+services:
+  dmarc-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "6767:6767"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarcdb
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+    depends_on:
+      - postgres
+
+  dmarc-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ./consumer
+    environment:
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=dmarcdb
+      - DB_SSLMODE=disable
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+    depends_on:
+      - postgres
+    restart: unless-stopped
 
   postgres:
     image: postgres:14
@@ -283,34 +553,22 @@ volumes:
 
 3. Configure environment variables in a `.env` file in the project root.
 
-4. Start the containers:
+4. Build and start the containers:
 
 ```sh
-docker-compose up -d
+docker-compose up -d --build
 ```
-
-This will start the DMARC Analyzer server and PostgreSQL database in containers.
-
-### Using Docker Compose with Local Build
-
-1. Make sure Docker and Docker Compose are installed on your system.
-
-2. Configure environment variables in the `docker-compose.yml` file or create a `.env` file in the project root.
-
-3. Build and start the containers:
-
-```sh
-docker-compose up -d
-```
-
-This will start the DMARC Analyzer server and PostgreSQL database in containers.
 
 ### Manual Deployment
 
-1. Build the application:
+1. Build the application and consumer:
 
 ```sh
+# Build the main server
 go build -o dmarc-server ./backend/cmd/server/server.go
+
+# Build the SQS consumer
+go build -o dmarc-consumer ./backend/cmd/consumer/consumer.go
 ```
 
 2. Set up the PostgreSQL database and apply the schema as described in the Development Setup section.
@@ -322,6 +580,13 @@ go build -o dmarc-server ./backend/cmd/server/server.go
 ```sh
 ./dmarc-server
 ```
+
+5. Run the consumer in a separate terminal:
+
+```sh
+./dmarc-consumer
+```
+
 
 ## License
 
