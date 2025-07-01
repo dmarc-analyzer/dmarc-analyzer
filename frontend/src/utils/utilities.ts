@@ -71,7 +71,6 @@ export function sanitizePropertyNames(data: any, transform: (value: any) => any 
   })
 }
 
-
 /**
  * Get date range for the last 30 days
  * @returns IDateRange object with start and end dates
@@ -172,4 +171,28 @@ export function removeSessionStorage(key: string): void {
   catch (e) {
     console.warn('Failed to remove from session storage:', e)
   }
+}
+
+/**
+ * Calculate DMARC alignment percentage from record counts
+ * @param item - Object containing total_count and pass_count properties
+ * @returns Percentage as number (0-100)
+ */
+export function calculatePassingPercentage(item: { total_count: number, pass_count: number }): number {
+  if (item.total_count === 0)
+    return 0
+  return (item.pass_count / item.total_count) * 100
+}
+
+/**
+ * Get color for percentage display based on value
+ * @param percentage - Percentage number (e.g., 85.2)
+ * @returns Color string for Vuetify chip
+ */
+export function getPercentageColor(percentage: number): string {
+  if (percentage >= 99)
+    return 'success'
+  if (percentage >= 90)
+    return 'warning'
+  return 'error'
 }

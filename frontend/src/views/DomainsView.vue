@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDmarcStore } from '@/stores/dmarcStore'
-import { getlast30DayRange, getSessionStorage, removeSessionStorage, setSessionStorage } from '@/utils/utilities'
+import { calculatePassingPercentage, formatNumber, getlast30DayRange, getPercentageColor, getSessionStorage, removeSessionStorage, setSessionStorage } from '@/utils/utilities'
 
 // Initialize composables
 const router = useRouter()
@@ -10,7 +10,6 @@ const dmarcStore = useDmarcStore()
 
 // Reactive state
 const filterText = ref('')
-const userInfo = ref('')
 
 // Computed properties
 
@@ -31,39 +30,6 @@ const filteredDomains = computed(() => {
     domainStat.domain.toLowerCase().includes(query),
   )
 })
-
-/**
- * Calculate passing percentage from domain statistics
- * @param domainStat - Domain statistics object
- * @returns Percentage as number (0-100)
- */
-function calculatePassingPercentage(domainStat: any): number {
-  if (domainStat.total_count === 0)
-    return 0
-  return (domainStat.pass_count / domainStat.total_count) * 100
-}
-
-/**
- * Get color for percentage display based on value
- * @param percentage - Percentage number (e.g., 85.2)
- * @returns Color string for Vuetify chip
- */
-function getPercentageColor(percentage: number): string {
-  if (percentage >= 99)
-    return 'success'
-  if (percentage >= 90)
-    return 'warning'
-  return 'error'
-}
-
-/**
- * Format number with commas for thousands separator
- * @param num - Number to format
- * @returns Formatted number string
- */
-function formatNumber(num: number): string {
-  return new Intl.NumberFormat().format(num)
-}
 
 // Methods
 
@@ -131,8 +97,8 @@ onMounted(() => {
       <h1 class="text-h4 mb-2">
         Domains
       </h1>
-      <div v-if="userInfo" class="text-subtitle-1 text-medium-emphasis">
-        {{ userInfo }}
+      <div class="text-subtitle-1 text-medium-emphasis">
+        DMARC domain statistics for the last 30 days
       </div>
     </div>
 
@@ -225,15 +191,15 @@ onMounted(() => {
               <!-- Statistics summary -->
               <div class="domain-stats">
                 <div class="stats-row">
-                  <span class="stats-label">总消息数:</span>
+                  <span class="stats-label">Total Messages:</span>
                   <span class="stats-value">{{ formatNumber(domainStat.total_count) }}</span>
                 </div>
                 <div class="stats-row">
-                  <span class="stats-label">通过数:</span>
+                  <span class="stats-label">Passed:</span>
                   <span class="stats-value">{{ formatNumber(domainStat.pass_count) }}</span>
                 </div>
                 <div class="stats-row">
-                  <span class="stats-label">通过率:</span>
+                  <span class="stats-label">Passing %:</span>
                   <v-chip
                     :color="getPercentageColor(calculatePassingPercentage(domainStat))"
                     size="small"
@@ -315,23 +281,23 @@ onMounted(() => {
     gap: 16px;
     padding: 8px 0;
 
-    // Responsive grid columns
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    // Responsive grid columns - wider cards for better domain display
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
 
     @media (max-width: 599px) {
       grid-template-columns: 1fr;
     }
 
     @media (min-width: 600px) and (max-width: 959px) {
-      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
     }
 
     @media (min-width: 960px) and (max-width: 1263px) {
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     }
 
     @media (min-width: 1264px) {
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
     }
   }
 

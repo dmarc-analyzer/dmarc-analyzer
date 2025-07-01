@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import type { CountEntry } from '@/services/dmarcService'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import DateRange from '@/components/DateRange.vue'
 import DetailDialog from '@/components/DetailDialog.vue'
 import LineChart from '@/components/LineChart.vue'
 import { useDmarcStore } from '@/stores/dmarcStore'
-import { formatNumber, getlast30DayRange } from '@/utils/utilities'
+import { calculatePassingPercentage, formatNumber, getlast30DayRange, getPercentageColor } from '@/utils/utilities'
 
 // Initialize composables
 const route = useRoute()
@@ -69,28 +68,6 @@ const sourceItems = computed(() => {
 })
 
 // Methods
-
-/**
- * Calculate DMARC alignment percentage from record counts
- * @param counts - Object containing record counts
- * @returns Percentage as number (0-100)
- */
-function calculatePassingPercentage(counts: CountEntry): number {
-  return counts.pass_count / counts.total_count * 100
-}
-
-/**
- * Get color for percentage display based on value
- * @param percentage - Percentage number (e.g., 85.2)
- * @returns Color string for Vuetify chip
- */
-function getPercentageColor(percentage: number): string {
-  if (percentage >= 99)
-    return 'success'
-  if (percentage >= 90)
-    return 'warning'
-  return 'error'
-}
 
 /**
  * Handle row click to show detail dialog
