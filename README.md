@@ -102,7 +102,42 @@ The server will start on port 6767 by default.
    - Configure bucket settings as needed
    - Click "Create bucket"
 
-2. **Configure IAM permissions:**
+2. **Configure S3 Bucket Policy for SES:**
+   After creating the bucket, you need to configure a bucket policy to allow AWS SES service to write emails to the bucket:
+   
+   - Go to your S3 bucket → Permissions tab
+   - Click "Edit" in the Bucket policy section
+   - Add the following policy (replace `your-aws-account-id` and `your-dmarc-reports-bucket-name` with your actual values):
+   
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "AllowSESToWriteEmails",
+         "Effect": "Allow",
+         "Principal": {
+           "Service": "ses.amazonaws.com"
+         },
+         "Action": [
+           "s3:PutObject"
+         ],
+         "Resource": "arn:aws:s3:::your-dmarc-reports-bucket-name/*",
+         "Condition": {
+           "StringEquals": {
+             "aws:SourceAccount": "your-aws-account-id"
+           }
+         }
+       }
+     ]
+   }
+   ```
+   
+   **Important:** Replace the following placeholders with your actual values:
+   - `your-aws-account-id`: Your AWS account ID
+   - `your-dmarc-reports-bucket-name`: Your S3 bucket name for DMARC reports
+
+3. **Configure IAM permissions:**
    - Create an IAM user or role with the following permissions:
      ```json
      {
@@ -124,7 +159,7 @@ The server will start on port 6767 by default.
      }
      ```
 
-3. **Obtain AWS credentials** (Access Key ID and Secret Access Key) for the IAM user.
+4. **Obtain AWS credentials** (Access Key ID and Secret Access Key) for the IAM user.
 
 ### SQS Queue Setup
 

@@ -102,7 +102,42 @@ go run ./backend/cmd/server/server.go
    - 根据需要配置存储桶设置
    - 点击"创建存储桶"
 
-2. **配置 IAM 权限：**
+2. **配置 S3 存储桶策略以允许 SES 写入：**
+   创建存储桶后，您需要配置存储桶策略以允许 AWS SES 服务向存储桶写入电子邮件：
+   
+   - 转到您的 S3 存储桶 → 权限选项卡
+   - 在存储桶策略部分点击"编辑"
+   - 添加以下策略（将 `your-aws-account-id` 和 `your-dmarc-reports-bucket-name` 替换为您的实际值）：
+   
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "AllowSESToWriteEmails",
+         "Effect": "Allow",
+         "Principal": {
+           "Service": "ses.amazonaws.com"
+         },
+         "Action": [
+           "s3:PutObject"
+         ],
+         "Resource": "arn:aws:s3:::your-dmarc-reports-bucket-name/*",
+         "Condition": {
+           "StringEquals": {
+             "aws:SourceAccount": "your-aws-account-id"
+           }
+         }
+       }
+     ]
+   }
+   ```
+   
+   **重要：** 将以下占位符替换为您的实际值：
+   - `your-aws-account-id`：您的 AWS 账户 ID
+   - `your-dmarc-reports-bucket-name`：您的 DMARC 报告 S3 存储桶名称
+
+3. **配置 IAM 权限：**
    - 创建具有以下权限的 IAM 用户或角色：
      ```json
      {
@@ -124,7 +159,7 @@ go run ./backend/cmd/server/server.go
      }
      ```
 
-3. **获取 IAM 用户的 AWS 凭证**（访问密钥 ID 和秘密访问密钥）。
+4. **获取 IAM 用户的 AWS 凭证**（访问密钥 ID 和秘密访问密钥）。
 
 ### SQS 队列设置
 
