@@ -29,7 +29,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy the source code into the container
-COPY . .
+COPY backend/ ./backend/
 
 # Build the main server application
 RUN CGO_ENABLED=0 GOOS=linux go build -o server ./backend/cmd/server/server.go
