@@ -14,13 +14,34 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// DomainStat represents domain statistics
+type DomainStat struct {
+	Domain       string `json:"domain"`
+	TotalCount   int64  `json:"total_count"`
+	PassCount    int64  `json:"pass_count"`
+}
+
 func HandleDomainList(c *gin.Context) {
-	var domains []string
-	err := db.DB.Model(&model.DmarcReportEntry{}).Select("distinct(domain)").Pluck("domain", &domains).Error
+	// Calculate the time range for the last 30 days
+	now := time.Now()
+	end := now.UTC().Unix()
+	start := now.UTC().AddDate(0, 0, -30).Unix()
+
+	var domainStats []DomainStat
+	err := db.DB.Model(&model.DmarcReportEntry{}).
+		Select(`domain,
+			SUM(message_count) AS total_count,
+			SUM(CASE WHEN eval_dkim = 'pass' OR eval_spf = 'pass' THEN message_count ELSE 0 END) AS pass_count`).
+		Where("end_date >= ? AND end_date <= ?", start, end).
+		Group("domain").
+		Order("domain").
+		Scan(&domainStats).Error
+
 	if err != nil {
 		log.Printf("Query failed: %v", err)
 	}
-	c.JSON(200, domains)
+
+	c.JSON(200, domainStats)
 }
 
 func HandleDomainSummary(c *gin.Context) {

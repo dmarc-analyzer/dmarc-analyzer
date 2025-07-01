@@ -1,4 +1,4 @@
-import type { DomainDetailResponse, DomainSummaryResponse } from '@/services/dmarcService'
+import type { DomainDetailResponse, DomainStat, DomainSummaryResponse } from '@/services/dmarcService'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import dmarcService from '@/services/dmarcService'
@@ -11,13 +11,11 @@ interface SummaryReport extends DomainSummaryResponse {
   }
 }
 
-interface DetailReport extends DomainDetailResponse {}
-
 export const useDmarcStore = defineStore('dmarc', () => {
   // State management for DMARC data
-  const domains = ref<string[]>([])
+  const domains = ref<DomainStat[]>([])
   const summaryReport = ref<SummaryReport | null>(null)
-  const detailReport = ref<DetailReport | null>(null)
+  const detailReport = ref<DomainDetailResponse | null>(null)
   const loading = ref<boolean>(false)
   const error = ref<string | null>(null)
 

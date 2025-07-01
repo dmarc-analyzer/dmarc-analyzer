@@ -27,10 +27,43 @@ const filteredDomains = computed(() => {
 
   // Case-insensitive domain filtering
   const query = filterText.value.toLowerCase()
-  return dmarcStore.domains.filter(domain =>
-    domain.toLowerCase().includes(query),
+  return dmarcStore.domains.filter(domainStat =>
+    domainStat.domain.toLowerCase().includes(query),
   )
 })
+
+/**
+ * Calculate passing percentage from domain statistics
+ * @param domainStat - Domain statistics object
+ * @returns Percentage as number (0-100)
+ */
+function calculatePassingPercentage(domainStat: any): number {
+  if (domainStat.total_count === 0)
+    return 0
+  return (domainStat.pass_count / domainStat.total_count) * 100
+}
+
+/**
+ * Get color for percentage display based on value
+ * @param percentage - Percentage number (e.g., 85.2)
+ * @returns Color string for Vuetify chip
+ */
+function getPercentageColor(percentage: number): string {
+  if (percentage >= 99)
+    return 'success'
+  if (percentage >= 90)
+    return 'warning'
+  return 'error'
+}
+
+/**
+ * Format number with commas for thousands separator
+ * @param num - Number to format
+ * @returns Formatted number string
+ */
+function formatNumber(num: number): string {
+  return new Intl.NumberFormat().format(num)
+}
 
 // Methods
 
@@ -167,12 +200,12 @@ onMounted(() => {
       <!-- Domains grid using responsive layout -->
       <div v-if="filteredDomains.length > 0" class="domains-grid">
         <v-card
-          v-for="domain in filteredDomains"
-          :key="domain"
+          v-for="domainStat in filteredDomains"
+          :key="domainStat.domain"
           class="domain-card"
           elevation="2"
           hover
-          @click="goToReport(domain)"
+          @click="goToReport(domainStat.domain)"
         >
           <v-card-text class="domain-card-content">
             <!-- Domain security icon -->
@@ -182,9 +215,34 @@ onMounted(() => {
               </v-icon>
             </div>
 
-            <!-- Domain name -->
-            <div class="domain-name" :title="domain">
-              {{ domain }}
+            <!-- Domain info section -->
+            <div class="domain-info">
+              <!-- Domain name -->
+              <div class="domain-name" :title="domainStat.domain">
+                {{ domainStat.domain }}
+              </div>
+
+              <!-- Statistics summary -->
+              <div class="domain-stats">
+                <div class="stats-row">
+                  <span class="stats-label">总消息数:</span>
+                  <span class="stats-value">{{ formatNumber(domainStat.total_count) }}</span>
+                </div>
+                <div class="stats-row">
+                  <span class="stats-label">通过数:</span>
+                  <span class="stats-value">{{ formatNumber(domainStat.pass_count) }}</span>
+                </div>
+                <div class="stats-row">
+                  <span class="stats-label">通过率:</span>
+                  <v-chip
+                    :color="getPercentageColor(calculatePassingPercentage(domainStat))"
+                    size="small"
+                    :variant="calculatePassingPercentage(domainStat) === 0 ? 'flat' : 'tonal'"
+                  >
+                    {{ calculatePassingPercentage(domainStat).toFixed(2) }}%
+                  </v-chip>
+                </div>
+              </div>
             </div>
 
             <!-- Action button -->
@@ -194,8 +252,8 @@ onMounted(() => {
                 size="small"
                 color="primary"
                 variant="text"
-                :aria-label="`View DMARC report for ${domain}`"
-                @click.stop="goToReport(domain)"
+                :aria-label="`View DMARC report for ${domainStat.domain}`"
+                @click.stop="goToReport(domainStat.domain)"
               >
                 <v-icon size="20">
                   mdi-chart-line
@@ -292,27 +350,56 @@ onMounted(() => {
 
     .domain-card-content {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 16px;
       padding: 16px !important;
-      min-height: 80px;
+      min-height: 120px;
 
       .domain-icon {
         flex-shrink: 0;
+        margin-top: 4px;
       }
 
-      .domain-name {
+      .domain-info {
         flex: 1;
-        font-size: 1.1rem;
-        font-weight: 500;
-        color: rgba(0, 0, 0, 0.87);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        min-width: 0;
 
-        // Responsive font size
-        @media (max-width: 599px) {
-          font-size: 1rem;
+        .domain-name {
+          font-size: 1.1rem;
+          font-weight: 500;
+          color: rgba(0, 0, 0, 0.87);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          margin-bottom: 12px;
+
+          // Responsive font size
+          @media (max-width: 599px) {
+            font-size: 1rem;
+          }
+        }
+
+        .domain-stats {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+
+          .stats-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.875rem;
+
+            .stats-label {
+              color: rgba(0, 0, 0, 0.6);
+              font-weight: 500;
+            }
+
+            .stats-value {
+              color: rgba(0, 0, 0, 0.87);
+              font-weight: 600;
+            }
+          }
         }
       }
 

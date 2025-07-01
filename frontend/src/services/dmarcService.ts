@@ -11,6 +11,15 @@ const apiClient: AxiosInstance = axios.create({
 
 // Type definitions for DMARC API responses
 
+/**
+ * Domain statistics with message counts
+ */
+export interface DomainStat {
+  domain: string
+  total_count: number
+  pass_count: number
+}
+
 export interface CountEntry {
   total_count: number
   pass_count: number
@@ -113,9 +122,9 @@ export interface DomainDetailResponse {
 }
 
 /**
- * Domains list response - direct array of domain names
+ * Domains list response - array of domain statistics
  */
-export type DomainsResponse = string[]
+export type DomainsResponse = DomainStat[]
 
 /**
  * DMARC Service API client
