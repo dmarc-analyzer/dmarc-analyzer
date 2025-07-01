@@ -68,8 +68,13 @@ func SenderbaseIPData(sip string) *SBGeo {
 	// convert from string input to net.IP:
 	ip := net.ParseIP(sip).To4()
 	if ip == nil {
-		log.Printf("ip6 address: %s\n", sip)
-		return nil
+
+		ip = net.ParseIP(sip).To16()
+		if ip == nil {
+			log.Printf("invalid address: %s\n", sip)
+			return nil
+		}
+		return GetIPV6Data(sip)
 	}
 
 	// reverse the byte-order of IP:
@@ -137,5 +142,24 @@ func SenderbaseIPData(sip string) *SBGeo {
 		}
 	}
 
+	return sbGeo
+}
+
+func GetIPV6Data(sip string) *SBGeo {
+	sbGeo := &SBGeo{}
+	hostnames, err := net.LookupAddr(sip)
+	if err != nil {
+		log.Printf("GetIPV6Data LookupAddr err: %s", err)
+		return sbGeo
+	}
+	if len(hostnames) > 0 {
+		hostname := hostnames[0]
+		hostname = strings.TrimSuffix(hostname, ".")
+		sbGeo.Hostname = hostname
+		if strings.HasSuffix(hostname, "outlook.com") {
+			sbGeo.DomainName = "outlook.com"
+			sbGeo.ESP = "Outlook"
+		}
+	}
 	return sbGeo
 }
