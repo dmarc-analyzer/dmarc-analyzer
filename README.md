@@ -137,30 +137,6 @@ The server will start on port 6767 by default.
    - `your-aws-account-id`: Your AWS account ID
    - `your-dmarc-reports-bucket-name`: Your S3 bucket name for DMARC reports
 
-3. **Configure IAM permissions:**
-   - Create an IAM user or role with the following permissions:
-     ```json
-     {
-       "Version": "2012-10-17",
-       "Statement": [
-         {
-           "Effect": "Allow",
-           "Action": [
-             "s3:GetObject",
-             "s3:ListBucket",
-             "s3:PutObject"
-           ],
-           "Resource": [
-             "arn:aws:s3:::your-dmarc-reports-bucket-name",
-             "arn:aws:s3:::your-dmarc-reports-bucket-name/*"
-           ]
-         }
-       ]
-     }
-     ```
-
-4. **Obtain AWS credentials** (Access Key ID and Secret Access Key) for the IAM user.
-
 ### SQS Queue Setup
 
 1. **Create an SQS queue:**
@@ -217,11 +193,32 @@ The server will start on port 6767 by default.
    - `your-dmarc-reports-bucket-name`: Your S3 bucket name for DMARC reports (recommended format: `your-org-name-dmarc-reports`)
    - `your-dmarc-reports-queue-name`: Your SQS queue name (recommended format: `dmarc-reports`)
 
-3. **Configure IAM permissions for SQS:**
+### IAM Configuration
+
+After setting up both S3 bucket and SQS queue, you need to create an IAM user or role with permissions to access both services:
+
+1. **Create IAM User or Role:**
+   - Navigate to IAM service in AWS Console
+   - Create a new IAM user or role for the DMARC Analyzer application
+
+2. **Attach IAM Policy:**
+   Create and attach the following policy that allows access to both S3 and SQS:
+   
    ```json
    {
      "Version": "2012-10-17",
      "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "s3:GetObject",
+           "s3:ListBucket"
+         ],
+         "Resource": [
+           "arn:aws:s3:::your-dmarc-reports-bucket-name",
+           "arn:aws:s3:::your-dmarc-reports-bucket-name/*"
+         ]
+       },
        {
          "Effect": "Allow",
          "Action": [
@@ -234,6 +231,14 @@ The server will start on port 6767 by default.
      ]
    }
    ```
+   
+   **Important:** Replace the following placeholders with your actual values:
+   - `your-aws-account-id`: Your AWS account ID
+   - `your-aws-region`: Your AWS region (e.g., us-east-1, eu-west-1)
+   - `your-dmarc-reports-bucket-name`: Your S3 bucket name for DMARC reports
+   - `your-dmarc-reports-queue-name`: Your SQS queue name
+
+3. **Obtain AWS credentials** (Access Key ID and Secret Access Key) for the IAM user.
 
 ### Setting Up Email Reception and S3 Event Triggers
 

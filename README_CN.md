@@ -137,29 +137,6 @@ go run ./backend/cmd/server/server.go
    - `your-aws-account-id`：您的 AWS 账户 ID
    - `your-dmarc-reports-bucket-name`：您的 DMARC 报告 S3 存储桶名称
 
-3. **配置 IAM 权限：**
-   - 创建具有以下权限的 IAM 用户或角色：
-     ```json
-     {
-       "Version": "2012-10-17",
-       "Statement": [
-         {
-           "Effect": "Allow",
-           "Action": [
-             "s3:GetObject",
-             "s3:ListBucket",
-             "s3:PutObject"
-           ],
-           "Resource": [
-             "arn:aws:s3:::your-dmarc-reports-bucket-name",
-             "arn:aws:s3:::your-dmarc-reports-bucket-name/*"
-           ]
-         }
-       ]
-     }
-     ```
-
-4. **获取 IAM 用户的 AWS 凭证**（访问密钥 ID 和秘密访问密钥）。
 
 ### SQS 队列设置
 
@@ -217,11 +194,32 @@ go run ./backend/cmd/server/server.go
    - `your-dmarc-reports-bucket-name`：您的 DMARC 报告 S3 存储桶名称（推荐格式：`your-org-name-dmarc-reports`）
    - `your-dmarc-reports-queue-name`：您的 SQS 队列名称（推荐格式：`dmarc-reports`）
 
-3. **配置 SQS 的 IAM 权限：**
+### IAM 配置
+
+在设置 S3 存储桶和 SQS 队列后，您需要创建一个具有访问这两个服务权限的 IAM 用户或角色：
+
+1. **创建 IAM 用户或角色：**
+   - 在 AWS 控制台中导航到 IAM 服务
+   - 为 DMARC 分析器应用程序创建新的 IAM 用户或角色
+
+2. **附加 IAM 策略：**
+   创建并附加以下策略，允许访问 S3 和 SQS：
+   
    ```json
    {
      "Version": "2012-10-17",
      "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "s3:GetObject",
+           "s3:ListBucket"
+         ],
+         "Resource": [
+           "arn:aws:s3:::your-dmarc-reports-bucket-name",
+           "arn:aws:s3:::your-dmarc-reports-bucket-name/*"
+         ]
+       },
        {
          "Effect": "Allow",
          "Action": [
@@ -234,6 +232,14 @@ go run ./backend/cmd/server/server.go
      ]
    }
    ```
+   
+   **重要：** 将以下占位符替换为您的实际值：
+   - `your-aws-account-id`：您的 AWS 账户 ID
+   - `your-aws-region`：您的 AWS 区域（例如，us-east-1、eu-west-1）
+   - `your-dmarc-reports-bucket-name`：您的 DMARC 报告 S3 存储桶名称
+   - `your-dmarc-reports-queue-name`：您的 SQS 队列名称
+
+3. **获取 IAM 用户的 AWS 凭证**（访问密钥 ID 和秘密访问密钥）。
 
 ### 设置电子邮件接收和 S3 事件触发器
 
