@@ -15,6 +15,11 @@ func TestSenderbaseIPV6Data(t *testing.T) {
 	fmt.Printf("%+v\n", sbGeo)
 }
 
+func TestIPDataGoogleUnverified(t *testing.T) {
+	sbGeo := SenderbaseIPData("2600:1901:101::10")
+	fmt.Printf("%+v\n", sbGeo)
+}
+
 func TestSenderbaseIPDataInvalid(t *testing.T) {
 	sbGeo := SenderbaseIPData("1.1")
 	fmt.Printf("%+v\n", sbGeo)

@@ -160,6 +160,10 @@ func GetIPV6Data(sip string) *SBGeo {
 			sbGeo.DomainName = "outlook.com"
 			sbGeo.ESP = "Outlook"
 		}
+		// https://support.google.com/a/answer/60764?hl=en
+		if strings.HasSuffix(hostname, "unverified-forwarding.1e100.net") {
+			sbGeo.DomainName = "unverified-forwarding.1e100.net"
+		}
 	}
 	return sbGeo
 }
