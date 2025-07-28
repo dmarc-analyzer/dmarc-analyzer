@@ -127,6 +127,9 @@ function updateDateRange({ startDate: newStartDate, endDate: newEndDate }: { sta
  * Component mounted - initialize data and fetch reports
  */
 onMounted(() => {
+  // Clear any previous data to prevent showing old chart data
+  dmarcStore.clearReports()
+
   // Get domain from route parameters
   domain.value = route.params.domain as string
 
@@ -151,6 +154,8 @@ onMounted(() => {
 watch(() => route.params, (newParams) => {
   // Handle domain changes
   if (newParams.domain && newParams.domain !== domain.value) {
+    // Clear previous data when switching domains to prevent showing old chart data
+    dmarcStore.clearReports()
     domain.value = newParams.domain as string
   }
 
