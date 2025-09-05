@@ -17,7 +17,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build the backend
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1-alpine AS backend-builder
 
 # Set the working directory inside the container
 WORKDIR /app
