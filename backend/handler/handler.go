@@ -45,11 +45,11 @@ func HandleDomainList(c *gin.Context) {
 }
 
 func HandleDomainSummary(c *gin.Context) {
-	domain := c.Param("domain")
-	startDate := c.Query("start")
-	endDate := c.Query("end")
+	params := GetHandleDomainSummaryParams(c)
 
-	start, end := util.ParseDate(startDate, endDate)
+	domain := params.domain
+
+	start, end := util.ParseDate(params.start, params.end)
 
 	// harvest all reports that have been received in the last 'dayCount' days:
 	summary, counts := QSummary(domain, start, end)
@@ -244,13 +244,19 @@ func QSummary(domain string, start int64, end int64) ([]DmarcReportingSummary, D
 }
 
 func HandleDmarcDetail(c *gin.Context) {
-	domain := c.Param("domain")
-	startDate := c.Query("start")
-	endDate := c.Query("end")
-	source := c.Query("source")
-	sourceType := c.Query("source_type")
+	params := GetHandleDmarcDetailParams(c)
 
-	start, end := util.ParseDate(startDate, endDate)
+	domain := params.domain
+	source := ""
+	sourceType := ""
+	if params.source != nil {
+		source = *params.source
+	}
+	if params.sourceType != nil {
+		sourceType = *params.sourceType
+	}
+
+	start, end := util.ParseDate(params.start, params.end)
 	result := GetDmarcReportDetail(start, end, domain, source, sourceType)
 
 	c.JSON(200, &DmarcDetailResp{
@@ -361,11 +367,11 @@ func GetDmarcReportDetail(start, end int64, domain, source, sourceType string) [
 }
 
 func HandleDmarcChart(c *gin.Context) {
-	domain := c.Param("domain")
-	startDate := c.Query("start")
-	endDate := c.Query("end")
+	params := GetHandleDmarcChartParams(c)
 
-	start, end := util.ParseDate(startDate, endDate)
+	domain := params.domain
+
+	start, end := util.ParseDate(params.start, params.end)
 	result, err := GetDmarcChartData(start, end, domain)
 	if err != nil {
 		fmt.Printf("GetDmarcChartData error: %+v", err)

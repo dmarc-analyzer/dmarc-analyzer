@@ -1,0 +1,462 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "DMARC Analyzer API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:6767"
+    }
+  ],
+  "paths": {
+    "/api/domains": {
+      "get": {
+        "summary": "List domains with recent stats",
+        "operationId": "HandleDomainList",
+        "responses": {
+          "200": {
+            "description": "Domain stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DomainStat"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/domains/{domain}/report": {
+      "get": {
+        "summary": "Domain summary report",
+        "operationId": "HandleDomainSummary",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "description": "RFC3339 timestamp",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "description": "RFC3339 timestamp",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Summary response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainSummaryResp"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/domains/{domain}/report/detail": {
+      "get": {
+        "summary": "Domain detail report",
+        "operationId": "HandleDmarcDetail",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "description": "RFC3339 timestamp",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "description": "RFC3339 timestamp",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detail response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmarcDetailResp"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/domains/{domain}/chart/dmarc": {
+      "get": {
+        "summary": "DMARC chart data",
+        "operationId": "HandleDmarcChart",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "description": "RFC3339 timestamp",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "description": "RFC3339 timestamp",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chart response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmarcChartResp"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DomainStat": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "total_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pass_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "domain",
+          "total_count",
+          "pass_count"
+        ]
+      },
+      "DomainSummaryResp": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmarcReportingSummary"
+            }
+          },
+          "domain_summary_counts": {
+            "$ref": "#/components/schemas/DomainSummaryCounts"
+          },
+          "start_date": {
+            "type": "string"
+          },
+          "end_date": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary",
+          "domain_summary_counts",
+          "start_date",
+          "end_date",
+          "domain"
+        ]
+      },
+      "DomainSummaryCounts": {
+        "type": "object",
+        "properties": {
+          "total_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pass_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "spf_aligned_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dkim_aligned_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fully_aligned_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "message_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "DmarcReportingSummary": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "total_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pass_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "spf_aligned_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dkim_aligned_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fully_aligned_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source_type": {
+            "type": "string"
+          }
+        }
+      },
+      "DmarcDetailResp": {
+        "type": "object",
+        "properties": {
+          "detail_rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmarcReportingDetail"
+            }
+          }
+        },
+        "required": [
+          "detail_rows"
+        ]
+      },
+      "DmarcReportingDetail": {
+        "type": "object",
+        "properties": {
+          "message_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "report_org_name": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "esp": {
+            "type": "string"
+          },
+          "source_domain": {
+            "type": "string"
+          },
+          "source_host": {
+            "type": "string"
+          },
+          "reverse_lookup": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "country": {
+            "type": "string"
+          },
+          "disposition": {
+            "type": "string"
+          },
+          "eval_dkim": {
+            "type": "string"
+          },
+          "eval_spf": {
+            "type": "string"
+          },
+          "header_from": {
+            "type": "string"
+          },
+          "envelope_from": {
+            "type": "string"
+          },
+          "envelope_to": {
+            "type": "string"
+          },
+          "auth_dkim_domain": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "auth_dkim_selector": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "auth_dkim_result": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "auth_spf_domain": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "auth_spf_scope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "auth_spf_result": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "po_reason": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "po_comment": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DmarcChartResp": {
+        "type": "object",
+        "properties": {
+          "chartdata": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmarcChartDaily"
+            }
+          },
+          "domain": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "chartdata",
+          "domain"
+        ]
+      },
+      "DmarcChartDaily": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmarcChartVolume"
+            }
+          }
+        }
+      },
+      "DmarcChartVolume": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "value": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      }
+    }
+  }
+}

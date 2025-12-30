@@ -412,6 +412,22 @@ The frontend application is configured to connect to the backend API running on 
 
 The DMARC Analyzer provides the following API endpoints:
 
+The OpenAPI spec lives at `api/openapi.json`. Route registration and parameter binding wrappers are generated from the spec:
+
+```sh
+./scripts/gen-routes.sh
+# or
+go generate ./backend/handler
+```
+
+Requires `openapi-generator` (`brew install openapi-generator`).
+
+Keep the spec in sync with `backend/handler/routes.gen.go` and `backend/handler/handlers.gen.go`; the consistency check runs via:
+
+```sh
+DATABASE_URL=postgresql://user:pass@localhost:5432/dmarcdb?sslmode=disable go test ./backend/handler -run TestOpenAPISpecMatchesRoutes
+```
+
 ### List Domains
 
 ```sh

@@ -22,10 +22,7 @@ func main() {
 	r.Use(cors.New(corsConfig))
 	r.Use(gin.Recovery())
 
-	r.GET("/api/domains", handler.HandleDomainList)
-	r.GET("/api/domains/:domain/report", handler.HandleDomainSummary)
-	r.GET("/api/domains/:domain/report/detail", handler.HandleDmarcDetail)
-	r.GET("/api/domains/:domain/chart/dmarc", handler.HandleDmarcChart)
+	handler.RegisterRoutes(r)
 
 	// Serve static files from the ./frontend/dist directory
 	r.Use(static.Serve("/", static.LocalFile("./frontend/dist", false)))

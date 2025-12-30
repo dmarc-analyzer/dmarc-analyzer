@@ -16,25 +16,33 @@ import (
 // If endDate is in the future, it's capped to the current time.
 //
 // Parameters:
-//   - startDate: The start date as a string in RFC3339Nano format
-//   - endDate: The end date as a string in RFC3339Nano format
+//   - startDate: The start date pointer in RFC3339Nano format (nil for default)
+//   - endDate: The end date pointer in RFC3339Nano format (nil for default)
 //
 // Returns:
 //   - int64: Unix timestamp for the start date
 //   - int64: Unix timestamp for the end date
-func ParseDate(startDate, endDate string) (int64, int64) {
+func ParseDate(startDate, endDate *string) (int64, int64) {
 	now := time.Now()
 
-	tStart, err := time.Parse(time.RFC3339Nano, startDate)
-	if err != nil {
-		log.Println("ERROR reading start time", err)
-		tStart = now.AddDate(0, 0, -30)
+	tStart := now.AddDate(0, 0, -30)
+	if startDate != nil && *startDate != "" {
+		parsedStart, err := time.Parse(time.RFC3339Nano, *startDate)
+		if err != nil {
+			log.Println("ERROR reading start time", err)
+		} else {
+			tStart = parsedStart
+		}
 	}
 
-	tEnd, err := time.Parse(time.RFC3339Nano, endDate)
-	if err != nil {
-		log.Println("ERROR reading end time", err)
-		tEnd = now
+	tEnd := now
+	if endDate != nil && *endDate != "" {
+		parsedEnd, err := time.Parse(time.RFC3339Nano, *endDate)
+		if err != nil {
+			log.Println("ERROR reading end time", err)
+		} else {
+			tEnd = parsedEnd
+		}
 	}
 	if tEnd.After(now) {
 		tEnd = now
