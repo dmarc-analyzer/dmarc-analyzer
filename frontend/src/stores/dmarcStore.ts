@@ -1,13 +1,77 @@
-import type { DomainDetailResponse, DomainStat, DomainSummaryResponse } from '@/services/dmarcService'
+import type {
+  DomainDetailResponse,
+  DomainStat,
+  DomainSummaryCounts,
+  DomainSummaryResponse,
+  SummaryEntry,
+} from '@/services/dmarcService'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import dmarcService from '@/services/dmarcService'
 
-interface SummaryReport extends DomainSummaryResponse {
+interface NormalizedSummaryEntry {
+  source: string
+  source_type: string
+  total_count: number
+  pass_count: number
+  spf_aligned_count: number
+  dkim_aligned_count: number
+  fully_aligned_count: number
+}
+
+interface NormalizedDomainSummaryCounts {
+  total_count: number
+  pass_count: number
+  spf_aligned_count: number
+  dkim_aligned_count: number
+  fully_aligned_count: number
+  message_count: number
+}
+
+interface SummaryReport extends Omit<DomainSummaryResponse, 'summary' | 'domain_summary_counts'> {
+  summary: NormalizedSummaryEntry[]
+  domain_summary_counts: NormalizedDomainSummaryCounts
   chart_data?: {
     dates: string[]
     pass: number[]
     fail: number[]
+  }
+}
+
+function normalizeCount(value: number | undefined): number {
+  return typeof value === 'number' && !Number.isNaN(value) ? value : 0
+}
+
+function normalizeSummaryEntry(entry: SummaryEntry): NormalizedSummaryEntry {
+  return {
+    source: entry.source ?? '',
+    source_type: entry.source_type ?? '',
+    total_count: normalizeCount(entry.total_count),
+    pass_count: normalizeCount(entry.pass_count),
+    spf_aligned_count: normalizeCount(entry.spf_aligned_count),
+    dkim_aligned_count: normalizeCount(entry.dkim_aligned_count),
+    fully_aligned_count: normalizeCount(entry.fully_aligned_count),
+  }
+}
+
+function normalizeSummaryCounts(counts: DomainSummaryCounts | undefined): NormalizedDomainSummaryCounts {
+  return {
+    total_count: normalizeCount(counts?.total_count),
+    pass_count: normalizeCount(counts?.pass_count),
+    spf_aligned_count: normalizeCount(counts?.spf_aligned_count),
+    dkim_aligned_count: normalizeCount(counts?.dkim_aligned_count),
+    fully_aligned_count: normalizeCount(counts?.fully_aligned_count),
+    message_count: normalizeCount(counts?.message_count),
+  }
+}
+
+function normalizeSummaryReport(report: DomainSummaryResponse): SummaryReport {
+  return {
+    summary: (report.summary || []).map(normalizeSummaryEntry),
+    domain_summary_counts: normalizeSummaryCounts(report.domain_summary_counts),
+    start_date: report.start_date ?? '',
+    end_date: report.end_date ?? '',
+    domain: report.domain ?? '',
   }
 }
 
@@ -110,14 +174,22 @@ export const useDmarcStore = defineStore('dmarc', () => {
     try {
       // Fetch report data from API
       const response = await dmarcService.getDomainSummary(domain, startDate, endDate)
-      summaryReport.value = response.data
+      summaryReport.value = normalizeSummaryReport(response.data)
 
       // Fetch chart data separately
       try {
         const chartResponse = await dmarcService.getChartData(domain, startDate, endDate)
+        const chartPayload = chartResponse.data as {
+          chartdata?: any
+          chart_data?: {
+            dates: string[]
+            pass: number[]
+            fail: number[]
+          }
+        }
 
         if (!summaryReport.value) {
-          summaryReport.value = {
+          summaryReport.value = normalizeSummaryReport({
             summary: [],
             domain_summary_counts: {
               total_count: 0,
@@ -125,17 +197,18 @@ export const useDmarcStore = defineStore('dmarc', () => {
               spf_aligned_count: 0,
               dkim_aligned_count: 0,
               fully_aligned_count: 0,
+              message_count: 0,
             },
             start_date: '',
             end_date: '',
             domain,
-          }
+          })
         }
 
         // Process backend chart data response
-        if (chartResponse.data && chartResponse.data.chartdata) {
+        if (chartPayload && chartPayload.chartdata) {
           // Handle backend chartdata format
-          const chartdata = chartResponse.data.chartdata
+          const chartdata = chartPayload.chartdata
           const dates: string[] = []
           const pass: number[] = []
           const fail: number[] = []
@@ -200,18 +273,18 @@ export const useDmarcStore = defineStore('dmarc', () => {
             console.error('Invalid chart data format:', chartdata)
           }
         }
-        else if (chartResponse.data && chartResponse.data.chart_data) {
+        else if (chartPayload && chartPayload.chart_data) {
           // If backend directly returns chart_data structure, use it
           if (summaryReport.value) {
-            summaryReport.value.chart_data = chartResponse.data.chart_data
+            summaryReport.value.chart_data = chartPayload.chart_data
           }
         }
         else {
           // If backend returns other structure
-          console.warn('Unexpected chart data format:', chartResponse.data)
-          if (summaryReport.value && chartResponse.data) {
+          console.warn('Unexpected chart data format:', chartPayload)
+          if (summaryReport.value && chartPayload) {
             // Try to cast the response data to chart_data format
-            const responseData = chartResponse.data as any
+            const responseData = chartPayload as any
             if (responseData.dates && responseData.pass && responseData.fail) {
               summaryReport.value.chart_data = {
                 dates: responseData.dates,

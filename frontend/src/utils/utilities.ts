@@ -175,7 +175,9 @@ export function removeSessionStorage(key: string): void {
 
 /**
  * Calculate DMARC alignment percentage from record counts
- * @param item - Object containing total_count and pass_count properties
+ * @param item - Object containing record counts
+ * @param item.total_count - Total message count
+ * @param item.pass_count - Passing message count
  * @returns Percentage as number (0-100)
  */
 export function calculatePassingPercentage(item: { total_count: number, pass_count: number }): number {
