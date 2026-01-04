@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
-    "openapi:gen": "openapi-generator generate -i ../api/openapi.json -g typescript-axios -o src/services/openapi --additional-properties=supportsES6=true --global-property apis,models,apiDocs=false,modelDocs=false,generateMetadata=false,supportingFiles=base.ts,common.ts,configuration.ts,index.ts",
+    "openapi:gen": "openapi-generator generate -i ../api/openapi.json -g typescript-axios -t ../api/openapi-generator/typescript-axios-overrides -o src/services/openapi --additional-properties=supportsES6=true --global-property apis,models,apiDocs=false,modelDocs=false,generateMetadata=false,supportingFiles=base.ts,common.ts,configuration.ts,index.ts",
     "lint": "eslint",
     "lint:fix": "eslint --fix"
   },

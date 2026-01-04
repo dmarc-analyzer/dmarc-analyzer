@@ -108,7 +108,7 @@ function getResultColor(result: string | undefined): string {
  * @param countryCode - Two-letter country code (ISO 3166-1 alpha-2)
  * @returns Flag emoji string or empty string if invalid
  */
-function getCountryFlagEmoji(countryCode: string): string {
+function getCountryFlagEmoji(countryCode?: string): string {
   if (!countryCode || !/^[A-Z]{2}$/i.test(countryCode)) {
     return ''
   }
@@ -134,7 +134,10 @@ function getCountryFlagEmoji(countryCode: string): string {
  * Uses the directCopy utility function to handle clipboard operations
  * @param text - Text to copy to clipboard
  */
-function copyToClipboard(text: string) {
+function copyToClipboard(text?: string) {
+  if (!text) {
+    return
+  }
   directCopy(text)
   // TODO: Replace console.warn with proper toast notification for better UX
   console.warn(`Copied to clipboard: ${text}`)
@@ -253,7 +256,8 @@ function closeDialog() {
               variant="text"
               size="small"
               class="text-decoration-underline"
-              :title="`Click to copy IP address: ${item.source_ip}`"
+              :title="`Click to copy IP address: ${item.source_ip || ''}`"
+              :disabled="!item.source_ip"
               @click="copyToClipboard(item.source_ip)"
             >
               {{ item.source_ip }}
