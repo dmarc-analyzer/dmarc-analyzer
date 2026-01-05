@@ -73,39 +73,29 @@ export function sanitizePropertyNames(data: any, transform: (value: any) => any 
 
 /**
  * Get date range for the last 30 days
- * @returns IDateRange object with start and end dates
+ * @returns IDateRange object with start and end dates (YYYY-MM-DD)
  */
 export function getlast30DayRange(): IDateRange {
   const range: IDateRange = {} as IDateRange
   const today = new Date()
   // Calculate 30 days ago (2592000000 ms = 30 days)
-  range.startDate = toMidnight(new Date(today.valueOf() - 2592000000), true)
-  range.endDate = toMidnight(today)
+  range.startDate = toDateOnly(new Date(today.valueOf() - 2592000000))
+  range.endDate = toDateOnly(today)
   return range
 }
 
 /**
- * Clamp a date to either midnight (00:00:00.000) or end of day (23:59:59.999)
+ * Convert a date to YYYY-MM-DD in UTC
  * @param date - Date object to clamp
- * @param am - If true, clamp to start of day; if false, clamp to end of day
- * @returns ISO string representation of the clamped date
+ * @returns ISO date-only string (YYYY-MM-DD)
  */
-export function toMidnight(date: Date, am = false): ISODateString {
-  if (am) {
-    // Set to start of day (00:00:00.000) in UTC
-    date.setUTCHours(0)
-    date.setUTCMinutes(0)
-    date.setUTCSeconds(0)
-    date.setUTCMilliseconds(0)
-  }
-  else {
-    // Set to end of day (23:59:59.999) in UTC
-    date.setUTCHours(23)
-    date.setUTCMinutes(59)
-    date.setUTCSeconds(59)
-    date.setUTCMilliseconds(999)
-  }
-  return date.toISOString()
+export function toDateOnly(date: Date): ISODateString {
+  const normalized = new Date(date.valueOf())
+  normalized.setUTCHours(0)
+  normalized.setUTCMinutes(0)
+  normalized.setUTCSeconds(0)
+  normalized.setUTCMilliseconds(0)
+  return normalized.toISOString().split('T')[0]
 }
 
 /**

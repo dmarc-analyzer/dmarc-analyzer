@@ -24,6 +24,8 @@
 ## Testing Guidelines
 - Go unit tests live alongside code in `*_test.go` (e.g., `backend/util/domain_test.go`).
 - Run all Go tests with `go test ./...` from the repo root.
+- If the local database doesn't exist yet, create it first: `createdb dmarc_analyzer`.
+- Use the local DB URL when running tests: `DATABASE_URL=postgres://localhost:5432/dmarc_analyzer?sslmode=disable go test ./...`.
 - The frontend currently has no test script in `frontend/package.json`; add one if introducing UI tests.
 
 ## Commit & Pull Request Guidelines

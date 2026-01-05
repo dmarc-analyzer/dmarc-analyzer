@@ -31,7 +31,7 @@ DMARC 分析器处理存储在 S3 存储桶中的 DMARC 聚合报告。它解析
 
 ```
 # 数据库配置
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dmarcdb
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dmarc_analyzer
 
 # AWS 配置
 S3_BUCKET_NAME=your-dmarc-reports-bucket-name
@@ -54,10 +54,10 @@ cd dmarc-analyzer
 
 ```sh
 # 创建 PostgreSQL 数据库
-createdb dmarcdb
+createdb dmarc_analyzer
 
 # 应用现有架构到您的数据库
-psql -d dmarcdb -f backend/schema.sql
+psql -d dmarc_analyzer -f backend/schema.sql
 ```
 
 ### 3. 重新生成数据库架构（高级）
@@ -73,7 +73,7 @@ pg_dump -d gen_sql --schema-only --no-owner | sed '/^--/d' | sed '/^SET /d' | se
 dropdb --if-exists gen_sql
 
 # 将新生成的架构应用到您的数据库
-psql -d dmarcdb -f backend/schema.sql
+psql -d dmarc_analyzer -f backend/schema.sql
 ```
 
 ### 4. 配置环境变量
@@ -405,6 +405,13 @@ yarn test
 yarn e2e
 ```
 
+运行 Go 测试（需要本地 Postgres 数据库）：
+
+```sh
+createdb dmarc_analyzer
+DATABASE_URL=postgres://localhost:5432/dmarc_analyzer?sslmode=disable go test ./...
+```
+
 ### 6. 配置
 
 前端应用程序配置为连接到在端口 6767 上运行的后端 API。如果需要更改此配置，请更新 `src/environments/` 中的环境文件。
@@ -466,7 +473,7 @@ services:
     ports:
       - "6767:6767"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarcdb
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarc_analyzer
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
       - SQS_QUEUE_URL=${SQS_QUEUE_URL}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
@@ -485,7 +492,7 @@ services:
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=dmarcdb
+      - DB_NAME=dmarc_analyzer
       - DB_SSLMODE=disable
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -501,7 +508,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=dmarcdb
+      - POSTGRES_DB=dmarc_analyzer
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
@@ -546,7 +553,7 @@ services:
     ports:
       - "6767:6767"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarcdb
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarc_analyzer
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
       - SQS_QUEUE_URL=${SQS_QUEUE_URL}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
@@ -567,7 +574,7 @@ services:
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=dmarcdb
+      - DB_NAME=dmarc_analyzer
       - DB_SSLMODE=disable
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -583,7 +590,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=dmarcdb
+      - POSTGRES_DB=dmarc_analyzer
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql

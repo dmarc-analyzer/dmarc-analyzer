@@ -31,7 +31,7 @@ The application requires the following environment variables:
 
 ```
 # Database Configuration
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dmarcdb
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dmarc_analyzer
 
 # AWS Configuration
 S3_BUCKET_NAME=your-dmarc-reports-bucket-name
@@ -54,10 +54,10 @@ cd dmarc-analyzer
 
 ```sh
 # Create the PostgreSQL database
-createdb dmarcdb
+createdb dmarc_analyzer
 
 # Apply the existing schema to your database
-psql -d dmarcdb -f backend/schema.sql
+psql -d dmarc_analyzer -f backend/schema.sql
 ```
 
 ### 3. Regenerating Database Schema (Advanced)
@@ -73,7 +73,7 @@ pg_dump -d gen_sql --schema-only --no-owner | sed '/^--/d' | sed '/^SET /d' | se
 dropdb --if-exists gen_sql
 
 # Apply the newly generated schema to your database
-psql -d dmarcdb -f backend/schema.sql
+psql -d dmarc_analyzer -f backend/schema.sql
 ```
 
 ### 4. Configure Environment Variables
@@ -404,6 +404,13 @@ Run end-to-end tests:
 yarn e2e
 ```
 
+Run Go tests (requires a local Postgres database):
+
+```sh
+createdb dmarc_analyzer
+DATABASE_URL=postgres://localhost:5432/dmarc_analyzer?sslmode=disable go test ./...
+```
+
 ### 6. Configuration
 
 The frontend application is configured to connect to the backend API running on port 6767. If you need to change this configuration, update the environment files in `src/environments/`.
@@ -425,7 +432,7 @@ Requires `openapi-generator` (`brew install openapi-generator`).
 Keep the spec in sync with `backend/handler/routes.gen.go` and `backend/handler/handlers.gen.go`; the consistency check runs via:
 
 ```sh
-DATABASE_URL=postgresql://user:pass@localhost:5432/dmarcdb?sslmode=disable go test ./backend/handler -run TestOpenAPISpecMatchesRoutes
+DATABASE_URL=postgresql://user:pass@localhost:5432/dmarc_analyzer?sslmode=disable go test ./backend/handler -run TestOpenAPISpecMatchesRoutes
 ```
 
 ### List Domains
@@ -481,7 +488,7 @@ services:
     ports:
       - "6767:6767"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarcdb
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarc_analyzer
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
       - SQS_QUEUE_URL=${SQS_QUEUE_URL}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
@@ -500,7 +507,7 @@ services:
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=dmarcdb
+      - DB_NAME=dmarc_analyzer
       - DB_SSLMODE=disable
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -516,7 +523,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=dmarcdb
+      - POSTGRES_DB=dmarc_analyzer
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
@@ -561,7 +568,7 @@ services:
     ports:
       - "6767:6767"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarcdb
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarc_analyzer
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
       - SQS_QUEUE_URL=${SQS_QUEUE_URL}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
@@ -582,7 +589,7 @@ services:
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=dmarcdb
+      - DB_NAME=dmarc_analyzer
       - DB_SSLMODE=disable
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -598,7 +605,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=dmarcdb
+      - POSTGRES_DB=dmarc_analyzer
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql

@@ -16,9 +16,9 @@ import (
 
 // DomainStat represents domain statistics
 type DomainStat struct {
-	Domain       string `json:"domain"`
-	TotalCount   int64  `json:"total_count"`
-	PassCount    int64  `json:"pass_count"`
+	Domain     string `json:"domain"`
+	TotalCount int64  `json:"total_count"`
+	PassCount  int64  `json:"pass_count"`
 }
 
 func HandleDomainList(c *gin.Context) {
@@ -58,8 +58,8 @@ func HandleDomainSummary(c *gin.Context) {
 		Domain:              domain,
 		Summary:             summary,
 		DomainSummaryCounts: counts,
-		StartDate:           time.Unix(start, 0).Format(time.RFC3339Nano),
-		EndDate:             time.Unix(end, 0).Format(time.RFC3339Nano),
+		StartDate:           time.Unix(start, 0).UTC().Format("2006-01-02"),
+		EndDate:             time.Unix(end, 0).UTC().Format("2006-01-02"),
 	}
 
 	c.JSON(200, resp)

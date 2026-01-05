@@ -48,7 +48,7 @@
             "name": "start",
             "in": "query",
             "required": false,
-            "description": "RFC3339 timestamp",
+            "description": "YYYY-MM-DD date",
             "schema": {
               "type": "string"
             }
@@ -57,7 +57,7 @@
             "name": "end",
             "in": "query",
             "required": false,
-            "description": "RFC3339 timestamp",
+            "description": "YYYY-MM-DD date",
             "schema": {
               "type": "string"
             }
@@ -94,7 +94,7 @@
             "name": "start",
             "in": "query",
             "required": false,
-            "description": "RFC3339 timestamp",
+            "description": "YYYY-MM-DD date",
             "schema": {
               "type": "string"
             }
@@ -103,7 +103,7 @@
             "name": "end",
             "in": "query",
             "required": false,
-            "description": "RFC3339 timestamp",
+            "description": "YYYY-MM-DD date",
             "schema": {
               "type": "string"
             }
@@ -156,7 +156,7 @@
             "name": "start",
             "in": "query",
             "required": false,
-            "description": "RFC3339 timestamp",
+            "description": "YYYY-MM-DD date",
             "schema": {
               "type": "string"
             }
@@ -165,7 +165,7 @@
             "name": "end",
             "in": "query",
             "required": false,
-            "description": "RFC3339 timestamp",
+            "description": "YYYY-MM-DD date",
             "schema": {
               "type": "string"
             }

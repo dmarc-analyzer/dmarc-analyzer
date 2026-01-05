@@ -23,11 +23,11 @@ import (
 //   - int64: Unix timestamp for the start date
 //   - int64: Unix timestamp for the end date
 func ParseDate(startDate, endDate *string) (int64, int64) {
-	now := time.Now()
+	now := time.Now().UTC()
 
-	tStart := now.AddDate(0, 0, -30)
+	tStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -30)
 	if startDate != nil && *startDate != "" {
-		parsedStart, err := time.Parse(time.RFC3339Nano, *startDate)
+		parsedStart, err := parseDateInput(*startDate, false)
 		if err != nil {
 			log.Println("ERROR reading start time", err)
 		} else {
@@ -37,7 +37,7 @@ func ParseDate(startDate, endDate *string) (int64, int64) {
 
 	tEnd := now
 	if endDate != nil && *endDate != "" {
-		parsedEnd, err := time.Parse(time.RFC3339Nano, *endDate)
+		parsedEnd, err := parseDateInput(*endDate, true)
 		if err != nil {
 			log.Println("ERROR reading end time", err)
 		} else {
@@ -52,4 +52,21 @@ func ParseDate(startDate, endDate *string) (int64, int64) {
 	end := tEnd.Unix()
 
 	return start, end
+}
+
+func parseDateInput(value string, isEnd bool) (time.Time, error) {
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err == nil {
+		return parsed, nil
+	}
+
+	parsed, err = time.Parse("2006-01-02", value)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	if isEnd {
+		return time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 23, 59, 59, 0, time.UTC), nil
+	}
+	return time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 0, 0, 0, 0, time.UTC), nil
 }

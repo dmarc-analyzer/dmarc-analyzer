@@ -98,22 +98,16 @@ function goBack() {
  * @param dateRange.endDate - End date in YYYY-MM-DD format
  */
 function updateDateRange({ startDate: newStartDate, endDate: newEndDate }: { startDate: string, endDate: string }) {
-  // Convert date strings to full ISO timestamps
-  // Start date: beginning of day (00:00:00.000Z)
-  // End date: end of day (23:59:59.999Z)
-  const startDateTime = new Date(`${newStartDate}T00:00:00.000Z`).toISOString()
-  const endDateTime = new Date(`${newEndDate}T23:59:59.999Z`).toISOString()
-
-  startDate.value = startDateTime
-  endDate.value = endDateTime
+  startDate.value = newStartDate
+  endDate.value = newEndDate
 
   // Update URL with new date range
   router.push({
     name: 'ReportWithDates',
     params: {
       domain: domain.value,
-      start: startDateTime,
-      end: endDateTime,
+      start: newStartDate,
+      end: newEndDate,
     },
   })
 
@@ -209,8 +203,8 @@ watch(() => route.params, (newParams) => {
     <v-card class="mb-4" elevation="1">
       <v-card-text>
         <DateRange
-          :initial-start-date="startDate ? startDate.split('T')[0] : null"
-          :initial-end-date="endDate ? endDate.split('T')[0] : null"
+          :initial-start-date="startDate"
+          :initial-end-date="endDate"
           @update:date-range="updateDateRange"
         />
       </v-card-text>
