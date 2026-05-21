@@ -1,0 +1,29 @@
+# shot-scraper multi-shot config for README / docs screenshots.
+#
+# Usage:
+#   ./scripts/screenshots.sh
+# (which runs shot-scraper inside the official Playwright Docker image so we
+# don't need a host-side Playwright install).
+#
+# The demo stack (scripts/screenshots.compose.yml) must be up first.
+
+- output: docs/screenshots/domains.png
+  url: http://localhost:6767/
+  width: 1280
+  height: 900
+  wait_for: document.querySelectorAll('.domain-card').length >= 5
+  wait: 800
+
+- output: docs/screenshots/report-summary.png
+  url: http://localhost:6767/report/marketing.acme.com
+  width: 1280
+  height: 1100
+  wait_for: document.querySelector('canvas') && document.querySelectorAll('tbody tr').length >= 3
+  wait: 1500
+
+- output: docs/screenshots/domains-mobile.png
+  url: http://localhost:6767/
+  width: 414
+  height: 900
+  wait_for: document.querySelectorAll('.domain-card').length >= 5
+  wait: 800

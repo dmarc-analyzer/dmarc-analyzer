@@ -1,0 +1,28 @@
+# Demo stack used only for taking documentation screenshots.
+# No AWS integration — postgres is seeded with synthetic demo data instead.
+services:
+  server:
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:main
+    command: ["./server"]
+    ports:
+      - "6767:6767"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dmarc_analyzer?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dmarc_analyzer
+    volumes:
+      - ../backend/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./screenshots.seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10

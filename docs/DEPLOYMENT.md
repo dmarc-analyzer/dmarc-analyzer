@@ -351,7 +351,7 @@ compose file with all three services:
 ```yaml
 services:
   server:
-    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:main
     command: ["./server"]
     ports:
       - "6767:6767"
@@ -363,7 +363,7 @@ services:
     restart: unless-stopped
 
   consumer:
-    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:main
     command: ["./consumer"]
     env_file: .env
     environment:
@@ -524,7 +524,7 @@ spec:
     spec:
       containers:
       - name: server
-        image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+        image: ghcr.io/dmarc-analyzer/dmarc-analyzer:main
         command: ["./server"]
         ports: [{ containerPort: 6767 }]
         env:
@@ -547,7 +547,7 @@ spec:
       serviceAccountName: dmarc-analyzer
       containers:
       - name: consumer
-        image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+        image: ghcr.io/dmarc-analyzer/dmarc-analyzer:main
         command: ["./consumer"]
         env:
         - name: DATABASE_URL
@@ -593,11 +593,13 @@ Plain EC2: `systemd` unit per binary, instance role for AWS auth, point
 
 ## Upgrading
 
-The image is a rolling `latest` tag plus versioned tags published on each
-release. Recommended:
+The image publishes a rolling `:main` tag (= latest build from the default
+branch) plus per-commit `sha-<short>` tags. There is no `:latest` tag —
+that's a CI convention this project doesn't use. Recommended:
 
-1. Pin to a specific tag (e.g. `ghcr.io/dmarc-analyzer/dmarc-analyzer:vX.Y.Z`)
-   in production rather than `latest`.
+1. Pin to a specific `sha-<short>` tag in production rather than `:main`.
+   See the available tags at
+   <https://github.com/dmarc-analyzer/dmarc-analyzer/pkgs/container/dmarc-analyzer>.
 2. To upgrade, `docker compose pull && docker compose up -d`.
 3. **Check `backend/schema.sql` between versions.** Any schema-affecting
    change ships a new `schema.sql`. The application doesn't auto-migrate —

@@ -17,6 +17,7 @@
 ## Table of Contents
 
 - [What is DMARC Analyzer?](#what-is-dmarc-analyzer)
+- [Screenshots](#screenshots)
 - [Key Features](#key-features)
 - [Architecture at a Glance](#architecture-at-a-glance)
 - [Tech Stack](#tech-stack)
@@ -62,6 +63,30 @@ attachments into a queryable, browsable dashboard:
 
 You get a self-hostable, single-binary alternative to SaaS DMARC dashboards —
 your reports never leave your AWS account.
+
+---
+
+## Screenshots
+
+**Domains overview** — every domain that has reported in the last 30 days,
+with traffic volume and DMARC pass rate (color-coded green / amber / red):
+
+![Domains overview](docs/screenshots/domains.png)
+
+**Per-domain report** — pass / fail trend chart, plus the same period broken
+down by sender (ESP / domain / host / IP). Click a row in the source table to
+drill into the underlying records:
+
+![Per-domain report](docs/screenshots/report-summary.png)
+
+**Mobile** — the layout collapses cleanly to a single column on narrow viewports:
+
+<p align="center">
+  <img src="docs/screenshots/domains-mobile.png" alt="Mobile view" width="320"/>
+</p>
+
+> Screenshots come from synthetic demo data. To regenerate them, see
+> [`scripts/screenshots.sh`](scripts/screenshots.sh).
 
 ---
 
@@ -237,7 +262,7 @@ the repo currently omits — see issue note in [`docs/DEPLOYMENT.md`](docs/DEPLO
 ```yaml
 services:
   server:
-    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:main
     command: ["./server"]
     ports:
       - "6767:6767"
@@ -248,7 +273,7 @@ services:
         condition: service_healthy
 
   consumer:
-    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:main
     command: ["./consumer"]
     env_file: .env
     environment:

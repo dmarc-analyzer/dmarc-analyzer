@@ -17,6 +17,7 @@
 ## 目录
 
 - [项目简介](#项目简介)
+- [仪表盘截图](#仪表盘截图)
 - [核心功能](#核心功能)
 - [整体架构](#整体架构)
 - [技术栈](#技术栈)
@@ -60,6 +61,28 @@
 
 最终你得到一个完全自托管、单镜像、不把数据交给第三方 SaaS 的 DMARC
 仪表盘 —— 所有报告都留在你自己的 AWS 账号里。
+
+---
+
+## 仪表盘截图
+
+**域名总览** —— 近 30 天内所有上报过的域名,带消息总量与 DMARC 通过率
+(绿 / 黄 / 红 三色分级):
+
+![Domains overview](docs/screenshots/domains.png)
+
+**单域名报告** —— pass / fail 趋势曲线,同时间段按发件人(ESP / 域名 /
+主机 / IP)聚合摘要。点击 source 表行可下钻到原始记录:
+
+![Per-domain report](docs/screenshots/report-summary.png)
+
+**移动端** —— 在窄屏上自动塌成单列布局:
+
+<p align="center">
+  <img src="docs/screenshots/domains-mobile.png" alt="Mobile view" width="320"/>
+</p>
+
+> 截图使用合成的演示数据。复现方式见 [`scripts/screenshots.sh`](scripts/screenshots.sh)。
 
 ---
 
@@ -207,7 +230,7 @@ consumer,推荐用以下版本):
 ```yaml
 services:
   server:
-    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:main
     command: ["./server"]
     ports:
       - "6767:6767"
@@ -218,7 +241,7 @@ services:
         condition: service_healthy
 
   consumer:
-    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:main
     command: ["./consumer"]
     env_file: .env
     environment:
