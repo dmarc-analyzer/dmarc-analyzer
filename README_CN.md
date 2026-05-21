@@ -1,640 +1,397 @@
-# DMARC 分析器
+# DMARC Analyzer
 
-DMARC 分析器是一个用于处理和分析 DMARC（基于域的消息认证、报告和一致性）报告的工具。它帮助组织监控电子邮件认证结果，保护其域名免受电子邮件欺骗和钓鱼攻击。
+> 自托管的 DMARC 聚合报告解析、存储与可视化平台。
+> 直接从邮件服务商接收 `rua=` 报告,解码并附加发件人情报,
+> 在仪表盘里查看"谁在以你的域名发邮件"。
+
+[![Apache 2.0 License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Go 1.25+](https://img.shields.io/badge/Go-1.25%2B-00ADD8.svg?logo=go)](https://go.dev/)
+[![Vue 3](https://img.shields.io/badge/Vue-3.5-42b883.svg?logo=vue.js)](https://vuejs.org/)
+[![PostgreSQL 14+](https://img.shields.io/badge/PostgreSQL-14%2B-336791.svg?logo=postgresql)](https://www.postgresql.org/)
+[![Docker Image](https://img.shields.io/badge/image-ghcr.io%2Fdmarc--analyzer%2Fdmarc--analyzer-2496ED.svg?logo=docker)](https://github.com/dmarc-analyzer/dmarc-analyzer/pkgs/container/dmarc-analyzer)
+
+[English](README.md) · [简体中文](README_CN.md)
+
+---
 
 ## 目录
 
-- [概述](#概述)
-- [前提条件](#前提条件)
+- [项目简介](#项目简介)
+- [核心功能](#核心功能)
+- [整体架构](#整体架构)
+- [技术栈](#技术栈)
+- [快速开始(Docker Compose)](#快速开始docker-compose)
 - [环境变量](#环境变量)
-- [开发环境设置](#开发环境设置)
-- [AWS 服务配置](#aws-服务配置)
-- [SQS 消息消费者](#sqs-消息消费者)
-- [前端设置](#前端设置)
-- [API 文档](#api-文档)
-- [部署](#部署)
+- [文档](#文档)
+- [API 概览](#api-概览)
+- [代码结构](#代码结构)
+- [参与贡献](#参与贡献)
+- [许可证](#许可证)
 
-## 概述
+---
 
-DMARC 分析器处理存储在 S3 存储桶中的 DMARC 聚合报告。它解析这些报告，提取相关信息，并将数据存储在 PostgreSQL 数据库中以进行分析和可视化。系统支持手动处理和通过 SQS 消息队列的自动处理。
+## 项目简介
 
-## 前提条件
+**DMARC**(Domain-based Message Authentication, Reporting & Conformance)
+允许域名持有者在 DNS 中发布一条策略,告诉收件服务器:如果有未经身份认证的
+邮件冒充你的域名应该怎么处理。
 
-- Go 1.24 或更高版本
-- PostgreSQL 14 或更高版本
-- 具有 S3 和 SQS 访问权限的 AWS 账户
-- Docker 和 Docker Compose（用于容器化部署）
+各大邮件服务商(Google、Microsoft、Yahoo、Apple……)会按照 `_dmarc` TXT
+记录里 `rua=` 指定的邮箱地址,定期回寄 **聚合报告(aggregate RUA report)**
+—— 以 gzip / zip 压缩的 XML 附件形式发送,告诉你它们在某段时间内看到
+多少封"以你域名身份"的邮件,以及 SPF / DKIM 是否通过、来源 IP 是什么。
+
+报告本身格式规范但实际处理起来很烦:
+
+- 各家服务商在 MIME / 压缩格式上略有差异;
+- 大量原始 IP 没有上下文,人类几乎读不出有用信息;
+- 数据量与时间维度高度相关,需要时序聚合才看得出趋势。
+
+**DMARC Analyzer** 是一条端到端流水线,把这些原始附件加工成可查询、可
+可视化的数据:
+
+1. AWS SES 接收 DMARC 报告邮件,落地到 **S3 桶**。
+2. S3 事件触发 **SQS 通知**,告知有新报告到达。
+3. **consumer** 从 S3 取邮件,逐层拆 MIME / gzip / zip / XML;解析后对
+   每条记录补充反向 DNS、组织域名、ESP 指纹、SenderBase 地理信息,
+   写入 **PostgreSQL**。
+4. **Go API 服务器 + Vue 3 SPA** 提供 Web 界面:按域名查看通过率趋势,
+   下钻每个发件来源,定位伪造行为。
+
+最终你得到一个完全自托管、单镜像、不把数据交给第三方 SaaS 的 DMARC
+仪表盘 —— 所有报告都留在你自己的 AWS 账号里。
+
+---
+
+## 核心功能
+
+### 接收 / 解析
+
+- 通过 **AWS SES → S3 → SQS** 事件链自动接收 DMARC 聚合报告。
+- 兼容现实中各种附件组合:multipart MIME、base64、gzip
+  (`application/gzip`、`application/x-gzip`、`gzip/document`……)、
+  zip(Google / Yahoo 两种风格)、纯 XML、`application/octet-stream`
+  搭配 `.zip` / `.gz` 文件名。
+- XML 解析器支持非 UTF-8 字符集自动识别。
+- **幂等**:同一个 S3 对象 key(= 邮件 message ID)在 SQS 重投时不会
+  被重复入库。
+
+### 数据增强
+
+- 对每个 source IP 做反向 DNS(PTR)查询。
+- 基于 [Public Suffix List](https://publicsuffix.org/) 提取组织域名。
+- 识别常见 ESP(电子邮件服务商):Google Mail、Amazon SES、MailChimp、
+  Outlook、Google "unverified forwarding" 等。
+- SenderBase(`*.query.senderbase.org`)TXT 查询,获取组织名、托管国家、
+  城市、经纬度。
+- IPv6 路径自带 Outlook / Google forwarding 启发式判断。
+
+### 存储与 API
+
+- 单张 PostgreSQL 表,复合主键 `(message_id, record_number)` ——
+  详见 [`backend/schema.sql`](backend/schema.sql)。
+- 版本化的 **OpenAPI 3 规范**:[`api/openapi.json`](api/openapi.json)。
+- Go(Gin)路由 + 参数绑定通过 `openapi-generator` **代码生成**,CI
+  会校验 spec 与生成文件的一致性。
+
+### 前端
+
+- **Vue 3 + Vite + Vuetify + Pinia + Chart.js** 单页应用,生产环境
+  由 Go 服务器作为静态资源直接 serve。
+- 域名总览页:展示近 30 天总量与通过率。
+- 域名详情页:通过/失败时序图、按来源(ESP / 域名 / 主机 / IP)聚合
+  的摘要表、单个来源的明细下钻。
+- 日期范围选择器(支持快捷选项),URL 可深度链接。
+
+### 运维
+
+- GitHub Actions 自动构建多架构(linux/amd64 + linux/arm64)镜像并
+  推送到 GHCR。
+- backfill 子命令可一次性导入 S3 中的历史报告。
+- consumer 支持 SIGINT / SIGTERM 优雅退出。
+- AWS 配置全部走标准环境变量,在 EC2 / EKS / ECS 上可直接用实例
+  角色,不必下发 access key。
+
+---
+
+## 整体架构
+
+```mermaid
+flowchart LR
+    G[Google / Microsoft<br/>Yahoo / Apple<br/>邮件服务商]:::ext
+
+    subgraph AWS[你的 AWS 账号]
+        direction LR
+        SES[AWS SES<br/>邮件接收规则]
+        S3[(S3 桶<br/>原始报告邮件)]
+        SQS[[SQS 队列<br/>ObjectCreated 事件]]
+    end
+
+    subgraph App[DMARC Analyzer]
+        direction TB
+        C[consumer<br/>cmd/consumer]
+        BF[backfill<br/>cmd/backfill]
+        SRV[server<br/>cmd/server<br/>Gin API + SPA]
+        DB[(PostgreSQL<br/>dmarc_report_entries)]
+        C -->|解析+增强| DB
+        BF -->|扫 S3+解析| DB
+        SRV -->|查询| DB
+    end
+
+    SB[(SenderBase TXT<br/>+ 反向 DNS<br/>+ Public Suffix List)]:::ext
+    U([用户 / 浏览器]):::user
+
+    G -- "rua= 报告邮件" --> SES
+    SES -- "保存邮件" --> S3
+    S3 -- "s3:ObjectCreated:*" --> SQS
+    SQS -- "拉取消息" --> C
+    C -- "GetObject" --> S3
+    BF -- "ListObjects + GetObject" --> S3
+    C -. "DNS 查询" .-> SB
+
+    U -- "https://your.domain" --> SRV
+    SRV -- "GET / (SPA)" --> U
+
+    classDef ext fill:#fffbe6,stroke:#bfa73a,color:#5a4a00;
+    classDef user fill:#e6f7ff,stroke:#3a7abf,color:#003a66;
+```
+
+若渲染器不支持 Mermaid,等价 ASCII 流程图见英文版 README。模块级别详细
+说明见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+
+---
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 后端 | Go 1.25、[Gin](https://github.com/gin-gonic/gin)、[GORM](https://gorm.io/) |
+| 数据库 | PostgreSQL 14+(使用 `inet` 与 `text[]` 列类型) |
+| AWS SDK | [aws-sdk-go-v2](https://github.com/aws/aws-sdk-go-v2) —— SES(收件)、S3、SQS |
+| 前端 | Vue 3(Composition API)、Vite 7、Vuetify 3、Pinia、Vue Router、Chart.js、date-fns |
+| API 契约 | OpenAPI 3(`api/openapi.json`);Gin 路由与 TS axios 客户端均由它生成 |
+| 构建 / CI | GitHub Actions(多架构 Docker 镜像、OpenAPI 漂移检查)、多阶段 Dockerfile |
+| 数据增强 | `net.LookupAddr`、`net.LookupTXT`、[Public Suffix List](https://pkg.go.dev/golang.org/x/net/publicsuffix)、SenderBase(`*.query.senderbase.org`) |
+
+---
+
+## 快速开始(Docker Compose)
+
+最快的方式:使用 GHCR 上的预构建镜像 + 本地 Postgres。
+
+### 1. 前置条件
+
+- Docker Engine 24+,带 `docker compose`(或 `docker-compose`)。
+- 已经配置好 **SES、S3、SQS** 的 AWS 账号(一次性,详见
+  [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md))。
+- 一个域名,其 `_dmarc` TXT 记录中 `rua=mailto:` 指向 SES 能接收的邮箱。
+
+### 2. 创建 `.env`
+
+```env
+# AWS 凭证(在 EC2/ECS/EKS 上可省略,使用实例角色)
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
+
+# DMARC 报告接收
+S3_BUCKET_NAME=your-org-dmarc-reports
+SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/your-org-dmarc-reports
+```
+
+### 3. `docker-compose.yml`
+
+下面这份是推荐写法(仓库中默认的 `docker-compose.yml` 没有包含
+consumer,推荐用以下版本):
+
+```yaml
+services:
+  server:
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    command: ["./server"]
+    ports:
+      - "6767:6767"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dmarc_analyzer?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  consumer:
+    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    command: ["./consumer"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dmarc_analyzer?sslmode=disable
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dmarc_analyzer
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+```
+
+### 4. 启动
+
+```sh
+docker compose up -d
+docker compose logs -f consumer   # 跟踪入库日志
+# 浏览器打开 http://localhost:6767
+```
+
+### 5. 回填历史报告(可选)
+
+S3 桶里如果已经有历史报告,可以一次性导入:
+
+```sh
+docker compose run --rm \
+  -e DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarc_analyzer?sslmode=disable \
+  --env-file .env \
+  server ./backfill
+```
+
+新手完整部署流程(IAM、SES、S3 事件、DNS……)请看
+**[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**。
+
+---
 
 ## 环境变量
 
-应用程序需要以下环境变量：
+| 变量 | 使用方 | 必填 | 说明 |
+|------|--------|------|------|
+| `DATABASE_URL` | `server`、`consumer`、`backfill` | 是 | GORM 用的 PostgreSQL DSN,例如:`postgresql://user:pass@host:5432/dmarc_analyzer?sslmode=disable` |
+| `S3_BUCKET_NAME` | `consumer`、`backfill` | 是 | SES 写入 DMARC 邮件的 S3 桶名 |
+| `SQS_QUEUE_URL` | `consumer` | 是(实时接收时) | 订阅了 `s3:ObjectCreated:*` 的 SQS 队列 URL |
+| `AWS_REGION` | 所有 AWS 调用 | 是 | AWS 区域 |
+| `AWS_ACCESS_KEY_ID` | 所有 AWS 调用 | 可选 | 使用实例角色时可省略 |
+| `AWS_SECRET_ACCESS_KEY` | 所有 AWS 调用 | 可选 | 同上 |
+| `AWS_SESSION_TOKEN` | 所有 AWS 调用 | 可选 | 临时凭证场景使用 |
 
-```
-# 数据库配置
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dmarc_analyzer
+> ⚠️ 早期 README 里出现过 `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` /
+> `DB_NAME` / `DB_SSLMODE`,但**当前代码只读 `DATABASE_URL`**(详见
+> [`backend/db/db.go`](backend/db/db.go))。请使用 DSN 形式。
 
-# AWS 配置
-S3_BUCKET_NAME=your-dmarc-reports-bucket-name
-SQS_QUEUE_URL=https://sqs.your-aws-region.amazonaws.com/your-aws-account-id/your-dmarc-reports-queue-name
-AWS_ACCESS_KEY_ID=your-aws-access-key
-AWS_SECRET_ACCESS_KEY=your-aws-secret-key
-AWS_REGION=your-aws-region
-```
+---
 
-## 开发环境设置
+## 文档
 
-### 1. 克隆仓库
+详细文档统一收纳在 [`docs/`](docs/) 目录下:
 
-```sh
-git clone https://github.com/dmarc-analyzer/dmarc-analyzer.git
-cd dmarc-analyzer
-```
+| 文档 | 目标读者 | 内容 |
+|------|----------|------|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 工程师 | 组件图、各 Go 包职责、数据流、数据库 schema、增强流水线、OpenAPI 代码生成 |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | 新运维 | AWS 端到端配置(SES / S3 / SQS / IAM)、DNS、环境变量、Docker Compose、k8s、安全加固 |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | 贡献者 | 本地开发环境、测试、OpenAPI 重新生成、schema 重新生成、提交规范、代码风格 |
+| [`docs/API.md`](docs/API.md) | API 调用方 | 四个端点的参数、响应、`curl` 示例 |
+| [`docs/DMARC_PRIMER.md`](docs/DMARC_PRIMER.md) | 入门者 | DMARC / SPF / DKIM 是什么,为什么有聚合报告,怎么读 |
+| [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | 运维 | 常见问题(没数据、SQS 不消费、解析失败)与排查方法 |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | 贡献者 | PR 清单、提交格式、开发环境入口 |
+| [`AGENTS.md`](AGENTS.md) | 仓库 agent | 自动化 / AI 贡献者约定 |
 
-### 2. 设置数据库
+---
 
-```sh
-# 创建 PostgreSQL 数据库
-createdb dmarc_analyzer
+## API 概览
 
-# 应用现有架构到您的数据库
-psql -d dmarc_analyzer -f backend/schema.sql
-```
+服务器在 `/api` 下提供四个只读 JSON 端点。所有日期参数支持
+`YYYY-MM-DD`(推荐)或 RFC3339Nano。
 
-### 3. 重新生成数据库架构（高级）
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `GET` | `/api/domains` | 列出所有域名及近 30 天总量 / 通过量 |
+| `GET` | `/api/domains/{domain}/report?start=&end=` | 按来源(ESP / 域名 / 主机 / IP)聚合的摘要 |
+| `GET` | `/api/domains/{domain}/report/detail?start=&end=&source=&source_type=` | 单个来源的明细行,用于下钻 |
+| `GET` | `/api/domains/{domain}/chart/dmarc?start=&end=` | 趋势图所需的每日 pass/fail 时序数据 |
 
-此步骤仅在您修改了模型类并需要重新生成schema.sql文件时才需要执行。
-
-```sh
-# 生成新的数据库架构
-dropdb --if-exists gen_sql && createdb gen_sql
-go run ./backend/cmd/generate_sql.go
-echo '-- Code generated by dmarc-analyzer generate_sql. DO NOT EDIT.' > backend/schema.sql
-pg_dump -d gen_sql --schema-only --no-owner | sed '/^--/d' | sed '/^SET /d' | sed '/^SELECT /d' | sed 's/public\.//g' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' -e 's/\n\n*/\n/' >> backend/schema.sql
-dropdb --if-exists gen_sql
-
-# 将新生成的架构应用到您的数据库
-psql -d dmarc_analyzer -f backend/schema.sql
-```
-
-### 4. 配置环境变量
-
-在项目根目录中创建一个 `.env` 文件，其中包含上面列出的必需环境变量。
-
-### 5. 运行应用程序
+示例:
 
 ```sh
-# 启动服务器
-go run ./backend/cmd/server/server.go
+curl 'http://127.0.0.1:6767/api/domains'
+curl 'http://127.0.0.1:6767/api/domains/example.com/report?start=2026-04-20&end=2026-05-20'
 ```
 
-服务器默认将在端口 6767 上启动。
+完整 schema、错误语义与各端点的 `curl` 示例见
+**[`docs/API.md`](docs/API.md)**。
 
-## AWS 服务配置
+机器可读规范:**[`api/openapi.json`](api/openapi.json)** —— 可直接导入
+Postman / Insomnia,或用 `openapi-generator` 生成任意语言的客户端。
 
-### S3 存储桶设置
+---
 
-1. **创建一个 S3 存储桶来存储 DMARC 报告：**
-   - 登录 AWS 管理控制台
-   - 导航到 S3 服务
-   - 点击"创建存储桶"
-   - 输入唯一的存储桶名称（例如，`your-org-name-dmarc-reports`）
-   - 选择您偏好的区域
-   - 根据需要配置存储桶设置
-   - 点击"创建存储桶"
-
-2. **配置 S3 存储桶策略以允许 SES 写入：**
-   创建存储桶后，您需要配置存储桶策略以允许 AWS SES 服务向存储桶写入电子邮件：
-   
-   - 转到您的 S3 存储桶 → 权限选项卡
-   - 在存储桶策略部分点击"编辑"
-   - 添加以下策略（将 `your-aws-account-id` 和 `your-dmarc-reports-bucket-name` 替换为您的实际值）：
-   
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Sid": "AllowSESToWriteEmails",
-         "Effect": "Allow",
-         "Principal": {
-           "Service": "ses.amazonaws.com"
-         },
-         "Action": [
-           "s3:PutObject"
-         ],
-         "Resource": "arn:aws:s3:::your-dmarc-reports-bucket-name/*",
-         "Condition": {
-           "StringEquals": {
-             "aws:SourceAccount": "your-aws-account-id"
-           }
-         }
-       }
-     ]
-   }
-   ```
-   
-   **重要：** 将以下占位符替换为您的实际值：
-   - `your-aws-account-id`：您的 AWS 账户 ID
-   - `your-dmarc-reports-bucket-name`：您的 DMARC 报告 S3 存储桶名称
-
-
-### SQS 队列设置
-
-1. **创建 SQS 队列：**
-   - 在 AWS 控制台中导航到 SQS 服务
-   - 点击"创建队列"
-   - 选择"标准队列"
-   - 输入队列名称（例如，`dmarc-reports`）
-   - 配置队列设置：
-     - **可见性超时**：30 秒（推荐）
-     - **消息保留期**：4 天（默认）
-     - **接收消息等待时间**：20 秒（用于长轮询）
-   - 点击"创建队列"
-
-2. **配置 SQS 队列访问策略：**
-   创建队列后，您需要配置访问策略以允许 AWS S3 服务向队列发送消息：
-   
-   - 转到您的 SQS 队列 → 权限选项卡
-   - 在访问策略部分点击"编辑"
-   - 用以下内容替换默认策略（将 `your-aws-account-id`、`your-aws-region` 和 `your-dmarc-reports-bucket-name` 替换为您的实际值）：
-   
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Principal": {
-           "AWS": "arn:aws:iam::your-aws-account-id:root"
-         },
-         "Action": "SQS:*",
-         "Resource": "arn:aws:sqs:your-aws-region:your-aws-account-id:your-dmarc-reports-queue-name"
-       },
-       {
-         "Sid": "AllowS3ToSendMessages",
-         "Effect": "Allow",
-         "Principal": {
-           "Service": "s3.amazonaws.com"
-         },
-         "Action": "sqs:SendMessage",
-         "Resource": "arn:aws:sqs:your-aws-region:your-aws-account-id:your-dmarc-reports-queue-name",
-         "Condition": {
-           "StringEquals": {
-             "aws:SourceAccount": "your-aws-account-id"
-           }
-         }
-       }
-     ]
-   }
-   ```
-   
-   **重要：** 将以下占位符替换为您的实际值：
-   - `your-aws-account-id`：您的 AWS 账户 ID
-   - `your-aws-region`：您的 AWS 区域（例如，us-east-1、eu-west-1）
-   - `your-dmarc-reports-bucket-name`：您的 DMARC 报告 S3 存储桶名称（推荐格式：`your-org-name-dmarc-reports`）
-   - `your-dmarc-reports-queue-name`：您的 SQS 队列名称（推荐格式：`dmarc-reports`）
-
-### IAM 配置
-
-在设置 S3 存储桶和 SQS 队列后，您需要创建一个具有访问这两个服务权限的 IAM 用户或角色：
-
-1. **创建 IAM 用户或角色：**
-   - 在 AWS 控制台中导航到 IAM 服务
-   - 为 DMARC 分析器应用程序创建新的 IAM 用户或角色
-
-2. **附加 IAM 策略：**
-   创建并附加以下策略，允许访问 S3 和 SQS：
-   
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Action": [
-           "s3:GetObject",
-           "s3:ListBucket"
-         ],
-         "Resource": [
-           "arn:aws:s3:::your-dmarc-reports-bucket-name",
-           "arn:aws:s3:::your-dmarc-reports-bucket-name/*"
-         ]
-       },
-       {
-         "Effect": "Allow",
-         "Action": [
-           "sqs:ReceiveMessage",
-           "sqs:DeleteMessage",
-           "sqs:GetQueueAttributes"
-         ],
-         "Resource": "arn:aws:sqs:your-aws-region:your-aws-account-id:your-dmarc-reports-queue-name"
-       }
-     ]
-   }
-   ```
-   
-   **重要：** 将以下占位符替换为您的实际值：
-   - `your-aws-account-id`：您的 AWS 账户 ID
-   - `your-aws-region`：您的 AWS 区域（例如，us-east-1、eu-west-1）
-   - `your-dmarc-reports-bucket-name`：您的 DMARC 报告 S3 存储桶名称
-   - `your-dmarc-reports-queue-name`：您的 SQS 队列名称
-
-3. **获取 IAM 用户的 AWS 凭证**（访问密钥 ID 和秘密访问密钥）。
-
-### 设置电子邮件接收和 S3 事件触发器
-
-**重要：** 仅支持 S3 传递方法进行 DMARC 报告处理。Lambda 函数无法访问电子邮件附件和正文内容，这些对于解析 DMARC 报告是必需的。
-
-#### 使用 AWS SES（简单电子邮件服务）
-
-1. **配置 SES 接收电子邮件：**
-   - 在 AWS 控制台中导航到 SES 服务
-   - 转到"电子邮件接收" → "规则集"
-   - 创建新规则集或使用默认规则集
-   - 创建新规则：
-     - **收件人**：`dmarc-reports@yourdomain.com`
-     - **操作**：存储在 S3 存储桶中
-     - **S3 存储桶**：选择您的 DMARC 报告存储桶
-     - **S3 键前缀**：`dmarc-reports/`（可选）
-
-2. **配置 S3 事件通知：**
-   - 转到您的 S3 存储桶 → 属性 → 事件通知
-   - 点击"创建事件通知"
-   - 配置事件：
-     - **事件名称**：`dmarc-email-uploaded`
-     - **事件类型**：选择"所有对象创建事件"
-     - **目标**：SQS 队列
-     - **SQS 队列**：选择您创建的 SQS 队列
-   - 点击"保存更改"
-
-**注意：** Lambda 函数不适合此用例，因为它们无法访问包含 DMARC 报告数据的电子邮件附件和正文内容。S3 传递方法保留了完整的电子邮件结构，允许 DMARC 分析器从电子邮件附件中提取和解析 XML 报告。
-
-### DMARC 记录配置
-
-要接收 DMARC 报告，请配置您域名的 DMARC 记录：
+## 代码结构
 
 ```
-_dmarc.example.com. IN TXT "v=DMARC1; p=none; rua=mailto:dmarc-reports@example.com;"
+.
+├── api/
+│   ├── openapi.json                  # OpenAPI 3 规范(单一来源)
+│   └── openapi-generator/            # 生成器模板覆盖
+├── backend/
+│   ├── cmd/
+│   │   ├── server/server.go          # HTTP API + 静态 SPA
+│   │   ├── consumer/consumer.go      # SQS 驱动的入库
+│   │   ├── backfill/backfill.go      # 一次性历史回填
+│   │   └── generate_sql.go           # 用 GORM AutoMigrate 导出 schema.sql
+│   ├── handler/                      # API handler + 生成的路由
+│   ├── model/                        # GORM 模型 + XML 模型 + 自定义类型
+│   ├── messageprocessor/             # SQS 拉取循环 + 去重
+│   ├── s3client/, sqsclient/         # AWS 客户端初始化
+│   ├── senderbase/                   # IP 地理 / ESP 指纹
+│   ├── util/                         # publicsuffix、日期解析
+│   ├── process.go                    # MIME / gzip / zip / XML 解码
+│   └── schema.sql                    # 自动生成的 Postgres schema
+├── frontend/                         # Vue 3 SPA(Vite + Vuetify + Pinia)
+│   └── src/
+│       ├── views/                    # DomainsView, ReportView
+│       ├── components/               # LineChart, DateRange, DetailDialog
+│       ├── stores/                   # Pinia store
+│       └── services/openapi/         # 生成的 typescript-axios 客户端
+├── scripts/gen-routes.sh             # 重新生成 routes.gen.go + handlers.gen.go
+├── .github/workflows/                # docker-build.yml, openapi-routes.yml
+├── docker-compose.yml                # 本地开发便捷启动
+├── Dockerfile                        # 多阶段构建:node → go → alpine
+├── Makefile                          # 构建 / 运行 / Docker 目标
+└── go.mod
 ```
 
-确保 `rua` 字段中的电子邮件地址与 SES 中配置的收件人匹配。
+---
 
-## SQS 消息消费者
+## 参与贡献
 
-DMARC 分析器包含一个 SQS 消息消费者，可以自动处理新到达的 DMARC 报告。
+欢迎 PR、Issue 与讨论。先看:
 
-### 构建和运行消费者
+1. **[`CONTRIBUTING.md`](CONTRIBUTING.md)** —— 简版指引。
+2. **[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)** —— 完整本地开发流程
+   (Postgres、Go 测试、OpenAPI 重新生成、schema 重新生成、前端客户端
+   重新生成)。
+3. 在 issue 列表里看是否已有相同议题;较大改动建议先
+   [新建 issue](https://github.com/dmarc-analyzer/dmarc-analyzer/issues/new)
+   讨论方案。
 
-```sh
-# 构建消费者
-make build-consumer
+速查规则:
 
-# 运行消费者
-make run-consumer
+- push 之前跑 `go test ./...` 和 `cd frontend && yarn build`。
+- commit message:简短的祈使句,自然时可用 `fix:` / `feat:` / `docs:` /
+  `ci:` 这类前缀。尽量加 `-s`(sign-off)与 `-S`(GPG 签名)。
+- 改动 API 时同步更新 [`api/openapi.json`](api/openapi.json),并执行
+  `./scripts/gen-routes.sh` 保证生成的 Go 文件同步。
 
-# 或者一步构建和运行
-make run-consumer
-```
-
-### 手动构建和运行
-
-```sh
-# 构建
-cd backend
-go build -o ../bin/consumer ./cmd/consumer
-
-# 运行
-./bin/consumer
-```
-
-### 消费者功能
-
-- **自动消息处理**：持续轮询 SQS 队列以获取新消息
-- **重复检测**：防止处理同一电子邮件多次
-- **错误处理**：具有重试逻辑的优雅错误处理
-- **优雅关闭**：响应 SIGINT/SIGTERM 信号
-- **详细日志记录**：用于监控和调试的综合日志记录
-
-### 消费者的环境变量
-
-```bash
-# S3配置
-export S3_BUCKET_NAME="your-dmarc-reports-bucket-name"
-
-# SQS配置
-export SQS_QUEUE_URL="https://sqs.your-aws-region.amazonaws.com/your-aws-account-id/your-dmarc-reports-queue-name"
-
-# 数据库配置
-export DB_HOST="localhost"
-export DB_PORT="5432"
-export DB_USER="your_db_user"
-export DB_PASSWORD="your_db_password"
-export DB_NAME="your_db_name"
-export DB_SSLMODE="disable"
-```
-
-### 工作流程
-
-1. **电子邮件接收**：DMARC 报告发送到您配置的电子邮件地址
-2. **S3 存储**：SES 将电子邮件存储在您的 S3 存储桶中
-3. **事件触发**：S3 事件通知向 SQS 发送消息
-4. **消息处理**：消费者获取消息并处理电子邮件
-5. **数据提取**：提取和解析 DMARC 报告数据
-6. **数据库存储**：结果存储在 PostgreSQL 数据库中
-7. **消息清理**：成功处理的消息从队列中删除
-
-## 回填报告
-
-要处理 S3 存储桶中现有的 DMARC 报告：
-
-```sh
-go run ./backend/cmd/backfill/backfill.go
-```
-
-此命令将扫描您的 S3 存储桶中的 DMARC 报告，解析它们，并将数据存储在 PostgreSQL 数据库中。
-
-## 前端设置
-
-DMARC 分析器前端使用 Angular 构建。按照以下步骤设置和运行前端应用程序。
-
-### 1. 前提条件
-
-- Node.js 16 或更高版本
-- Yarn 包管理器
-
-### 2. 安装依赖
-
-导航到前端目录并安装所需的依赖项：
-
-```sh
-cd frontend
-yarn install
-```
-
-### 3. 开发服务器
-
-启动开发服务器：
-
-```sh
-yarn start
-```
-
-默认情况下，这将在端口 4200 上启动 Angular 开发服务器。您可以通过 http://localhost:4200/ 访问应用程序。
-
-### 4. 生产环境构建
-
-要为生产环境构建应用程序：
-
-```sh
-yarn build
-```
-
-构建产物将存储在 `dist/` 目录中。
-
-### 5. 运行测试
-
-执行单元测试：
-
-```sh
-yarn test
-```
-
-运行端到端测试：
-
-```sh
-yarn e2e
-```
-
-运行 Go 测试（需要本地 Postgres 数据库）：
-
-```sh
-createdb dmarc_analyzer
-DATABASE_URL=postgres://localhost:5432/dmarc_analyzer?sslmode=disable go test ./...
-```
-
-### 6. 配置
-
-前端应用程序配置为连接到在端口 6767 上运行的后端 API。如果需要更改此配置，请更新 `src/environments/` 中的环境文件。
-
-## API 文档
-
-DMARC 分析器提供以下 API 端点：
-
-### 列出域名
-
-```sh
-curl http://127.0.0.1:6767/api/domains
-```
-
-返回所有具有 DMARC 报告的域名列表。
-
-### 域名摘要报告
-
-```sh
-curl http://127.0.0.1:6767/api/domains/example.com/report?start=2024-10-10T00:00:00Z&end=2024-10-20T00:00:00Z
-```
-
-返回指定域名和日期范围的 DMARC 报告摘要。
-
-### 域名详细报告
-
-```sh
-curl http://127.0.0.1:6767/api/domains/example.com/report/detail?start=2024-10-10T00:00:00Z&end=2024-10-20T00:00:00Z
-```
-
-返回指定域名和日期范围的详细 DMARC 报告信息。
-
-### 域名 DMARC 图表数据
-
-```sh
-curl http://127.0.0.1:6767/api/domains/example.com/chart/dmarc?start=2024-10-10T00:00:00Z&end=2024-10-20T00:00:00Z
-```
-
-返回用于生成指定域名和日期范围的 DMARC 合规性图表的数据。
-
-## 部署
-
-### 使用预构建的 Docker 镜像
-
-1. 从 GitHub Container Registry 拉取预构建的 Docker 镜像：
-
-```sh
-docker pull ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
-```
-
-2. 创建一个包含以下内容的 `docker-compose.yml` 文件：
-
-```yaml
-version: '3.8'
-
-services:
-  dmarc-analyzer:
-    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
-    ports:
-      - "6767:6767"
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarc_analyzer
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-    depends_on:
-      - postgres
-
-  dmarc-consumer:
-    image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
-    command: ./consumer
-    environment:
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=dmarc_analyzer
-      - DB_SSLMODE=disable
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-    depends_on:
-      - postgres
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:14
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=dmarc_analyzer
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
-
-volumes:
-  postgres-data:
-```
-
-3. 在项目根目录中的 `.env` 文件中配置环境变量：
-
-```bash
-# AWS 配置
-S3_BUCKET_NAME=your-dmarc-reports-bucket-name
-SQS_QUEUE_URL=https://sqs.your-aws-region.amazonaws.com/your-aws-account-id/your-dmarc-reports-queue-name
-AWS_ACCESS_KEY_ID=your-aws-access-key
-AWS_SECRET_ACCESS_KEY=your-aws-secret-key
-AWS_REGION=your-aws-region
-```
-
-4. 启动容器：
-
-```sh
-docker-compose up -d
-```
-
-这将在容器中启动 DMARC 分析器服务器、SQS 消费者和 PostgreSQL 数据库。
-
-### 使用 Docker Compose 进行本地构建
-
-1. 确保您的系统上安装了 Docker 和 Docker Compose。
-
-2. 创建一个包含以下内容的 `docker-compose.yml` 文件：
-
-```yaml
-version: '3.8'
-
-services:
-  dmarc-analyzer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "6767:6767"
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarc_analyzer
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-    depends_on:
-      - postgres
-
-  dmarc-consumer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ./consumer
-    environment:
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=dmarc_analyzer
-      - DB_SSLMODE=disable
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-    depends_on:
-      - postgres
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:14
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=dmarc_analyzer
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
-
-volumes:
-  postgres-data:
-```
-
-3. 在项目根目录中的 `.env` 文件中配置环境变量。
-
-4. 构建并启动容器：
-
-```sh
-docker-compose up -d --build
-```
-
-### 手动部署
-
-1. 构建应用程序和消费者：
-
-```sh
-# 构建主服务器
-go build -o dmarc-server ./backend/cmd/server/server.go
-
-# 构建 SQS 消费者
-go build -o dmarc-consumer ./backend/cmd/consumer/consumer.go
-```
-
-2. 按照开发环境设置部分中的描述设置 PostgreSQL 数据库并应用架构。
-
-3. 配置环境变量。
-
-4. 运行服务器：
-
-```sh
-./dmarc-server
-```
-
-5. 在单独的终端中运行消费者：
-
-```sh
-./dmarc-consumer
-```
+---
 
 ## 许可证
 
-有关详细信息，请参阅 [LICENSE](LICENSE) 文件。
+本项目使用 Apache License 2.0 —— 详见 [`LICENSE`](LICENSE)。

@@ -1,656 +1,427 @@
 # DMARC Analyzer
 
-DMARC Analyzer is a tool for processing and analyzing DMARC (Domain-based Message Authentication, Reporting, and Conformance) reports. It helps organizations monitor email authentication results and protect their domains from email spoofing and phishing attacks.
+> Self-hosted DMARC aggregate report parser, store, and dashboard.
+> Receive `rua=` reports straight from mailbox providers, decode them, enrich
+> with sender intelligence, and visualize who is sending mail "as you".
+
+[![Apache 2.0 License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Go 1.25+](https://img.shields.io/badge/Go-1.25%2B-00ADD8.svg?logo=go)](https://go.dev/)
+[![Vue 3](https://img.shields.io/badge/Vue-3.5-42b883.svg?logo=vue.js)](https://vuejs.org/)
+[![PostgreSQL 14+](https://img.shields.io/badge/PostgreSQL-14%2B-336791.svg?logo=postgresql)](https://www.postgresql.org/)
+[![Docker Image](https://img.shields.io/badge/image-ghcr.io%2Fdmarc--analyzer%2Fdmarc--analyzer-2496ED.svg?logo=docker)](https://github.com/dmarc-analyzer/dmarc-analyzer/pkgs/container/dmarc-analyzer)
+
+[English](README.md) · [简体中文](README_CN.md)
+
+---
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Prerequisites](#prerequisites)
+- [What is DMARC Analyzer?](#what-is-dmarc-analyzer)
+- [Key Features](#key-features)
+- [Architecture at a Glance](#architecture-at-a-glance)
+- [Tech Stack](#tech-stack)
+- [Quick Start (Docker Compose)](#quick-start-docker-compose)
 - [Environment Variables](#environment-variables)
-- [Development Setup](#development-setup)
-- [AWS Service Configuration](#aws-service-configuration)
-- [SQS Message Consumer](#sqs-message-consumer)
-- [Frontend Setup](#frontend-setup)
-- [API Documentation](#api-documentation)
-- [Deployment](#deployment)
+- [Documentation](#documentation)
+- [API Overview](#api-overview)
+- [Project Layout](#project-layout)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Overview
+---
 
-DMARC Analyzer processes DMARC aggregate reports that are stored in an S3 bucket. It parses these reports, extracts relevant information, and stores the data in a PostgreSQL database for analysis and visualization. The system supports both manual processing and automated processing via SQS message queues.
+## What is DMARC Analyzer?
 
-## Prerequisites
+**DMARC** (Domain-based Message Authentication, Reporting & Conformance) lets
+domain owners publish a DNS policy describing how receiving mail servers
+should treat unauthenticated mail claiming to be from their domain.
 
-- Go 1.24 or later
-- PostgreSQL 14 or later
-- AWS account with S3 and SQS access
-- Docker and Docker Compose (for containerized deployment)
+Mail providers (Google, Microsoft, Yahoo, Apple, …) then send back **aggregate
+RUA reports** — gzipped/zipped XML attachments emailed to the address listed in
+the domain's `_dmarc` TXT record. These reports describe how much traffic
+"as your domain" each provider saw, whether SPF / DKIM passed, and where it
+came from.
 
-## Environment Variables
+The format is open and well-specified, but the reports themselves are:
 
-The application requires the following environment variables:
+- delivered as compressed XML attachments to a mailbox,
+- emitted by dozens of senders with subtle format variations,
+- meaningless to humans without enrichment (raw IP → "who is this actually?").
 
-```
-# Database Configuration
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dmarc_analyzer
+**DMARC Analyzer** is an end-to-end pipeline that turns that firehose of
+attachments into a queryable, browsable dashboard:
 
-# AWS Configuration
-S3_BUCKET_NAME=your-dmarc-reports-bucket-name
-SQS_QUEUE_URL=https://sqs.your-aws-region.amazonaws.com/your-aws-account-id/your-dmarc-reports-queue-name
-AWS_ACCESS_KEY_ID=your-aws-access-key
-AWS_SECRET_ACCESS_KEY=your-aws-secret-key
-AWS_REGION=your-aws-region
-```
+1. AWS SES drops every inbound report email into an **S3 bucket**.
+2. An **SQS event** notifies the analyzer that a new email has arrived.
+3. The **consumer** fetches the email, unwraps the MIME / gzip / zip / XML
+   layers, parses the DMARC aggregate report, enriches each row with
+   reverse DNS, organisational domain, ESP fingerprint, and geolocation, and
+   writes it into **PostgreSQL**.
+4. A **Go API server** + **Vue 3 SPA** lets you slice the data per domain, see
+   pass / fail trends, drill into individual sources, and find spoofing.
 
-## Development Setup
+You get a self-hostable, single-binary alternative to SaaS DMARC dashboards —
+your reports never leave your AWS account.
 
-### 1. Clone the Repository
+---
 
-```sh
-git clone https://github.com/dmarc-analyzer/dmarc-analyzer.git
-cd dmarc-analyzer
-```
+## Key Features
 
-### 2. Set Up the Database
+### Ingestion
 
-```sh
-# Create the PostgreSQL database
-createdb dmarc_analyzer
+- Receives DMARC aggregate reports via **AWS SES → S3 → SQS** event chain.
+- Decodes the matrix of attachment formats sent in the wild:
+  multipart MIME, base64, gzip (`application/gzip`, `application/x-gzip`,
+  `gzip/document`, …), zip (Google / Yahoo styles), bare XML,
+  `application/octet-stream` with `.zip`/`.gz` filenames.
+- XML decoder with charset auto-detection for non-UTF-8 reports.
+- **Idempotent**: each S3 object key (= email message ID) is processed at
+  most once even on SQS redelivery.
 
-# Apply the existing schema to your database
-psql -d dmarc_analyzer -f backend/schema.sql
-```
+### Enrichment
 
-### 3. Regenerating Database Schema (Advanced)
+- Reverse DNS (PTR) lookups for every source IP.
+- Organisational domain extraction using the [Public Suffix List](https://publicsuffix.org/).
+- ESP (Email Service Provider) identification — Google Mail, Amazon SES,
+  MailChimp, Outlook, Google "unverified forwarding", etc.
+- SenderBase (`*.query.senderbase.org`) TXT lookups for org name, hosting
+  country, city, lat/long.
+- IPv6-aware path with Outlook / Google forwarding heuristics.
 
-This step is only necessary when you've modified the model classes and need to regenerate the schema.sql file.
+### Storage & API
 
-```sh
-# Generate a new database schema
-dropdb --if-exists gen_sql && createdb gen_sql
-go run ./backend/cmd/generate_sql.go
-echo '-- Code generated by dmarc-analyzer generate_sql. DO NOT EDIT.' > backend/schema.sql
-pg_dump -d gen_sql --schema-only --no-owner | sed '/^--/d' | sed '/^SET /d' | sed '/^SELECT /d' | sed 's/public\.//g' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' -e 's/\n\n*/\n/' >> backend/schema.sql
-dropdb --if-exists gen_sql
+- Single PostgreSQL table with a composite primary key
+  `(message_id, record_number)` — see [`backend/schema.sql`](backend/schema.sql).
+- Versioned **OpenAPI 3 spec** at [`api/openapi.json`](api/openapi.json).
+- Go (Gin) handlers + parameter binders are **code-generated** from the spec
+  via `openapi-generator`; a CI check rejects drift.
 
-# Apply the newly generated schema to your database
-psql -d dmarc_analyzer -f backend/schema.sql
-```
+### Frontend
 
-### 4. Configure Environment Variables
+- **Vue 3 + Vite + Vuetify + Pinia + Chart.js** SPA, served as static files by
+  the Go server in production.
+- Domain list with per-domain 30-day pass rate.
+- Per-domain report view: pass/fail time series, summary by source
+  (ESP / domain / host / IP), and per-source drill-down with raw rows.
+- Date range picker with presets, deep-linkable via URL.
 
-Create a `.env` file in the project root with the required environment variables as listed above.
+### Ops
 
-### 5. Run the Application
+- Multi-arch container image (linux/amd64 + linux/arm64) published to GHCR by
+  GitHub Actions.
+- Backfill CLI to import historical reports already sitting in S3.
+- Graceful shutdown on SIGINT / SIGTERM in the consumer.
+- All AWS config via standard environment variables — works with EC2 / EKS /
+  ECS instance profiles when you omit access keys.
 
-```sh
-# Start the server
-go run ./backend/cmd/server/server.go
-```
+---
 
-The server will start on port 6767 by default.
+## Architecture at a Glance
 
-## AWS Service Configuration
+```mermaid
+flowchart LR
+    G[Google / Microsoft<br/>Yahoo / Apple<br/>mailbox providers]:::ext
 
-### S3 Bucket Setup
+    subgraph AWS[Your AWS account]
+        direction LR
+        SES[AWS SES<br/>receiving rule]
+        S3[(S3 bucket<br/>raw report emails)]
+        SQS[[SQS queue<br/>ObjectCreated events]]
+    end
 
-1. **Create an S3 bucket to store DMARC reports:**
-   - Sign in to the AWS Management Console
-   - Navigate to S3 service
-   - Click "Create bucket"
-   - Enter a unique bucket name (e.g., `your-org-name-dmarc-reports`)
-   - Choose your preferred region
-   - Configure bucket settings as needed
-   - Click "Create bucket"
+    subgraph App[DMARC Analyzer]
+        direction TB
+        C[consumer<br/>cmd/consumer]
+        BF[backfill<br/>cmd/backfill]
+        SRV[server<br/>cmd/server<br/>Gin API + SPA]
+        DB[(PostgreSQL<br/>dmarc_report_entries)]
+        C -->|parse + enrich| DB
+        BF -->|scan S3 + parse| DB
+        SRV -->|query| DB
+    end
 
-2. **Configure S3 Bucket Policy for SES:**
-   After creating the bucket, you need to configure a bucket policy to allow AWS SES service to write emails to the bucket:
-   
-   - Go to your S3 bucket → Permissions tab
-   - Click "Edit" in the Bucket policy section
-   - Add the following policy (replace `your-aws-account-id` and `your-dmarc-reports-bucket-name` with your actual values):
-   
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Sid": "AllowSESToWriteEmails",
-         "Effect": "Allow",
-         "Principal": {
-           "Service": "ses.amazonaws.com"
-         },
-         "Action": [
-           "s3:PutObject"
-         ],
-         "Resource": "arn:aws:s3:::your-dmarc-reports-bucket-name/*",
-         "Condition": {
-           "StringEquals": {
-             "aws:SourceAccount": "your-aws-account-id"
-           }
-         }
-       }
-     ]
-   }
-   ```
-   
-   **Important:** Replace the following placeholders with your actual values:
-   - `your-aws-account-id`: Your AWS account ID
-   - `your-dmarc-reports-bucket-name`: Your S3 bucket name for DMARC reports
+    SB[(SenderBase TXT<br/>+ Reverse DNS<br/>+ Public Suffix List)]:::ext
+    U([User / browser]):::user
 
-### SQS Queue Setup
+    G -- "rua= reports" --> SES
+    SES -- "store email" --> S3
+    S3 -- "s3:ObjectCreated:*" --> SQS
+    SQS -- "poll messages" --> C
+    C -- "GetObject" --> S3
+    BF -- "ListObjects + GetObject" --> S3
+    C -. "DNS lookups" .-> SB
 
-1. **Create an SQS queue:**
-   - Navigate to SQS service in AWS Console
-   - Click "Create queue"
-   - Choose "Standard queue"
-   - Enter a queue name (e.g., `dmarc-reports`)
-   - Configure queue settings:
-     - **Visibility timeout**: 30 seconds (recommended)
-     - **Message retention period**: 4 days (default)
-     - **Receive message wait time**: 20 seconds (for long polling)
-   - Click "Create queue"
+    U -- "https://your.domain" --> SRV
+    SRV -- "GET / (SPA)" --> U
 
-2. **Configure SQS Queue Access Policy:**
-   After creating the queue, you need to configure an access policy to allow AWS S3 service to send messages to the queue:
-   
-   - Go to your SQS queue → Permissions tab
-   - Click "Edit" in the Access policy section
-   - Replace the default policy with the following (replace `your-aws-account-id`, `your-aws-region`, and `your-dmarc-reports-bucket-name` with your actual values):
-   
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Principal": {
-           "AWS": "arn:aws:iam::your-aws-account-id:root"
-         },
-         "Action": "SQS:*",
-         "Resource": "arn:aws:sqs:your-aws-region:your-aws-account-id:your-dmarc-reports-queue-name"
-       },
-       {
-         "Sid": "AllowS3ToSendMessages",
-         "Effect": "Allow",
-         "Principal": {
-           "Service": "s3.amazonaws.com"
-         },
-         "Action": "sqs:SendMessage",
-         "Resource": "arn:aws:sqs:your-aws-region:your-aws-account-id:your-dmarc-reports-queue-name",
-         "Condition": {
-           "StringEquals": {
-             "aws:SourceAccount": "your-aws-account-id"
-           }
-         }
-       }
-     ]
-   }
-   ```
-   
-   **Important:** Replace the following placeholders with your actual values:
-   - `your-aws-account-id`: Your AWS account ID
-   - `your-aws-region`: Your AWS region (e.g., us-east-1, eu-west-1)
-   - `your-dmarc-reports-bucket-name`: Your S3 bucket name for DMARC reports (recommended format: `your-org-name-dmarc-reports`)
-   - `your-dmarc-reports-queue-name`: Your SQS queue name (recommended format: `dmarc-reports`)
-
-### IAM Configuration
-
-After setting up both S3 bucket and SQS queue, you need to create an IAM user or role with permissions to access both services:
-
-1. **Create IAM User or Role:**
-   - Navigate to IAM service in AWS Console
-   - Create a new IAM user or role for the DMARC Analyzer application
-
-2. **Attach IAM Policy:**
-   Create and attach the following policy that allows access to both S3 and SQS:
-   
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Action": [
-           "s3:GetObject",
-           "s3:ListBucket"
-         ],
-         "Resource": [
-           "arn:aws:s3:::your-dmarc-reports-bucket-name",
-           "arn:aws:s3:::your-dmarc-reports-bucket-name/*"
-         ]
-       },
-       {
-         "Effect": "Allow",
-         "Action": [
-           "sqs:ReceiveMessage",
-           "sqs:DeleteMessage",
-           "sqs:GetQueueAttributes"
-         ],
-         "Resource": "arn:aws:sqs:your-aws-region:your-aws-account-id:your-dmarc-reports-queue-name"
-       }
-     ]
-   }
-   ```
-   
-   **Important:** Replace the following placeholders with your actual values:
-   - `your-aws-account-id`: Your AWS account ID
-   - `your-aws-region`: Your AWS region (e.g., us-east-1, eu-west-1)
-   - `your-dmarc-reports-bucket-name`: Your S3 bucket name for DMARC reports
-   - `your-dmarc-reports-queue-name`: Your SQS queue name
-
-3. **Obtain AWS credentials** (Access Key ID and Secret Access Key) for the IAM user.
-
-### Setting Up Email Reception and S3 Event Triggers
-
-**Important:** Only S3 delivery method is supported for DMARC report processing. Lambda functions cannot access email attachments and body content, which are essential for parsing DMARC reports.
-
-#### Using AWS SES (Simple Email Service)
-
-1. **Configure SES to receive emails:**
-   - Navigate to SES service in AWS Console
-   - Go to "Email receiving" → "Rule sets"
-   - Create a new rule set or use the default
-   - Create a new rule:
-     - **Recipient**: `dmarc-reports@yourdomain.com`
-     - **Action**: Store in S3 bucket
-     - **S3 bucket**: Select your DMARC reports bucket
-     - **S3 key prefix**: `dmarc-reports/` (optional)
-
-2. **Configure S3 Event Notifications:**
-   - Go to your S3 bucket → Properties → Event notifications
-   - Click "Create event notification"
-   - Configure the event:
-     - **Event name**: `dmarc-email-uploaded`
-     - **Event types**: Select "All object create events"
-     - **Destination**: SQS queue
-     - **SQS queue**: Select your created SQS queue
-   - Click "Save changes"
-
-**Note:** Lambda functions are not suitable for this use case because they cannot access the email attachments and body content that contain the DMARC report data. The S3 delivery method preserves the complete email structure, allowing the DMARC Analyzer to extract and parse the XML reports from email attachments.
-
-### DMARC Record Configuration
-
-To receive DMARC reports, configure your domain's DMARC record:
-
-```
-_dmarc.example.com. IN TXT "v=DMARC1; p=none; rua=mailto:dmarc-reports@example.com;"
+    classDef ext fill:#fffbe6,stroke:#bfa73a,color:#5a4a00;
+    classDef user fill:#e6f7ff,stroke:#3a7abf,color:#003a66;
 ```
 
-Make sure the email address in the `rua` field matches the recipient configured in SES.
+If your renderer doesn't support Mermaid, here's the same flow in ASCII:
 
-## SQS Message Consumer
-
-The DMARC Analyzer includes an SQS message consumer that automatically processes new DMARC reports as they arrive.
-
-### Building and Running the Consumer
-
-```sh
-# Build the consumer
-make build-consumer
-
-# Run the consumer
-make run-consumer
-
-# Or build and run in one command
-make run-consumer
+```
+                +--------------------+
+mailbox  rua=   |  AWS SES receive   |
+providers ----> |  (email -> S3 rule)|
+                +---------+----------+
+                          | store email
+                          v
+                +--------------------+      +-------------------+
+                |  S3 bucket         |----->|  SQS queue        |
+                |  (raw .eml objects)| event| (ObjectCreated)   |
+                +---------+----------+      +---------+---------+
+                          ^                           |
+                          | GetObject                 | long-poll
+                          |                           v
+                     +----+----+                +----+---------+
+                     | server  |                |   consumer   |
+                     | + SPA   |<-- query DB ---+ parse+enrich |
+                     +----+----+                +----+---------+
+                          |                          |
+                          v                          v
+                     +----+--------------------------+----+
+                     |   PostgreSQL: dmarc_report_entries  |
+                     +-------------------------------------+
 ```
 
-### Manual Build and Run
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for a module-by-module
+walkthrough.
 
-```sh
-# Build
-cd backend
-go build -o ../bin/consumer ./cmd/consumer
+---
 
-# Run
-./bin/consumer
-```
+## Tech Stack
 
-### Consumer Features
+| Layer       | Technology |
+|-------------|------------|
+| Backend     | Go 1.25, [Gin](https://github.com/gin-gonic/gin), [GORM](https://gorm.io/) |
+| Database    | PostgreSQL 14+ (uses `inet` and `text[]` column types) |
+| AWS         | [aws-sdk-go-v2](https://github.com/aws/aws-sdk-go-v2) — SES (receiving), S3, SQS |
+| Frontend    | Vue 3 (Composition API), Vite 7, Vuetify 3, Pinia, Vue Router, Chart.js, date-fns |
+| API contract| OpenAPI 3 (`api/openapi.json`); Gin routes + TS axios client are generated |
+| Build / CI  | GitHub Actions (multi-arch Docker image, OpenAPI drift check), Docker (multi-stage) |
+| Enrichment  | `net.LookupAddr`, `net.LookupTXT`, [Public Suffix List](https://pkg.go.dev/golang.org/x/net/publicsuffix), SenderBase (`*.query.senderbase.org`) |
 
-- **Automatic message processing**: Continuously polls SQS queue for new messages
-- **Duplicate detection**: Prevents processing the same email multiple times
-- **Error handling**: Graceful error handling with retry logic
-- **Graceful shutdown**: Responds to SIGINT/SIGTERM signals
-- **Detailed logging**: Comprehensive logging for monitoring and debugging
+---
 
-### Environment Variables for Consumer
+## Quick Start (Docker Compose)
 
-```bash
-# S3配置
-export S3_BUCKET_NAME="your-dmarc-reports-bucket-name"
-
-# SQS配置
-export SQS_QUEUE_URL="https://sqs.your-aws-region.amazonaws.com/your-aws-account-id/your-dmarc-reports-queue-name"
-
-# 数据库配置
-export DB_HOST="localhost"
-export DB_PORT="5432"
-export DB_USER="your_db_user"
-export DB_PASSWORD="your_db_password"
-export DB_NAME="your_db_name"
-export DB_SSLMODE="disable"
-```
-
-### Workflow
-
-1. **Email Reception**: DMARC reports are sent to your configured email address
-2. **S3 Storage**: SES stores the email in your S3 bucket
-3. **Event Trigger**: S3 event notification sends a message to SQS
-4. **Message Processing**: The consumer picks up the message and processes the email
-5. **Data Extraction**: DMARC report data is extracted and parsed
-6. **Database Storage**: Results are stored in PostgreSQL database
-7. **Message Cleanup**: Successfully processed messages are deleted from the queue
-
-## Backfilling Reports
-
-To process existing DMARC reports in your S3 bucket:
-
-```sh
-go run ./backend/cmd/backfill/backfill.go
-```
-
-This command will scan your S3 bucket for DMARC reports, parse them, and store the data in the PostgreSQL database.
-
-## Frontend Setup
-
-The DMARC Analyzer frontend is built with Angular. Follow these steps to set up and run the frontend application.
+The fastest path is the pre-built image from GHCR plus a local Postgres.
 
 ### 1. Prerequisites
 
-- Node.js 16 or later
-- Yarn package manager
+- Docker Engine 24+ and `docker compose` (or `docker-compose`).
+- AWS account with **SES, S3, SQS** wired up (one-time, see
+  [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)).
+- A domain whose `_dmarc` TXT record points `rua=mailto:` at an address SES
+  receives mail for.
 
-### 2. Install Dependencies
+### 2. Create `.env`
 
-Navigate to the frontend directory and install the required dependencies:
+```env
+# AWS credentials (omit on EC2/ECS/EKS — use the instance role instead)
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
 
-```sh
-cd frontend
-yarn install
+# DMARC report ingestion
+S3_BUCKET_NAME=your-org-dmarc-reports
+SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/your-org-dmarc-reports
 ```
 
-### 3. Development Server
+### 3. `docker-compose.yml`
 
-Start the development server:
-
-```sh
-yarn start
-```
-
-By default, this will start the Angular development server on port 4200. You can access the application at http://localhost:4200/.
-
-### 4. Production Build
-
-To build the application for production:
-
-```sh
-yarn build
-```
-
-The build artifacts will be stored in the `dist/` directory.
-
-### 5. Running Tests
-
-Execute unit tests:
-
-```sh
-yarn test
-```
-
-Run end-to-end tests:
-
-```sh
-yarn e2e
-```
-
-Run Go tests (requires a local Postgres database):
-
-```sh
-createdb dmarc_analyzer
-DATABASE_URL=postgres://localhost:5432/dmarc_analyzer?sslmode=disable go test ./...
-```
-
-### 6. Configuration
-
-The frontend application is configured to connect to the backend API running on port 6767. If you need to change this configuration, update the environment files in `src/environments/`.
-
-## API Documentation
-
-The DMARC Analyzer provides the following API endpoints:
-
-The OpenAPI spec lives at `api/openapi.json`. Route registration and parameter binding wrappers are generated from the spec:
-
-```sh
-./scripts/gen-routes.sh
-# or
-go generate ./backend/handler
-```
-
-Requires `openapi-generator` (`brew install openapi-generator`).
-
-Keep the spec in sync with `backend/handler/routes.gen.go` and `backend/handler/handlers.gen.go`; the consistency check runs via:
-
-```sh
-DATABASE_URL=postgresql://user:pass@localhost:5432/dmarc_analyzer?sslmode=disable go test ./backend/handler -run TestOpenAPISpecMatchesRoutes
-```
-
-### List Domains
-
-```sh
-curl http://127.0.0.1:6767/api/domains
-```
-
-Returns a list of all domains with DMARC reports.
-
-### Domain Summary Report
-
-```sh
-curl http://127.0.0.1:6767/api/domains/example.com/report?start=2024-10-10T00:00:00Z&end=2024-10-20T00:00:00Z
-```
-
-Returns a summary of DMARC reports for the specified domain and date range.
-
-### Domain Detail Report
-
-```sh
-curl http://127.0.0.1:6767/api/domains/example.com/report/detail?start=2024-10-10T00:00:00Z&end=2024-10-20T00:00:00Z
-```
-
-Returns detailed DMARC report information for the specified domain and date range.
-
-### Domain DMARC Chart Data
-
-```sh
-curl http://127.0.0.1:6767/api/domains/example.com/chart/dmarc?start=2024-10-10T00:00:00Z&end=2024-10-20T00:00:00Z
-```
-
-Returns data for generating DMARC compliance charts for the specified domain and date range.
-
-## Deployment
-
-### Using Pre-built Docker Image
-
-1. Pull the pre-built Docker image from GitHub Container Registry:
-
-```sh
-docker pull ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
-```
-
-2. Create a `docker-compose.yml` file with the following content:
+Use the example below (it includes the consumer, which the file checked into
+the repo currently omits — see issue note in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)):
 
 ```yaml
-version: '3.8'
-
 services:
-  dmarc-analyzer:
+  server:
     image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
+    command: ["./server"]
     ports:
       - "6767:6767"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarc_analyzer
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dmarc_analyzer?sslmode=disable
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
-  dmarc-consumer:
+  consumer:
     image: ghcr.io/dmarc-analyzer/dmarc-analyzer:latest
-    command: ./consumer
+    command: ["./consumer"]
+    env_file: .env
     environment:
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=dmarc_analyzer
-      - DB_SSLMODE=disable
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-    depends_on:
-      - postgres
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dmarc_analyzer?sslmode=disable
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:14
-    ports:
-      - "5432:5432"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=dmarc_analyzer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dmarc_analyzer
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   postgres-data:
 ```
 
-3. Configure environment variables in a `.env` file in the project root:
-
-```bash
-# AWS Configuration
-S3_BUCKET_NAME=your-dmarc-reports-bucket-name
-SQS_QUEUE_URL=https://sqs.your-aws-region.amazonaws.com/your-aws-account-id/your-dmarc-reports-queue-name
-AWS_ACCESS_KEY_ID=your-aws-access-key
-AWS_SECRET_ACCESS_KEY=your-aws-secret-key
-AWS_REGION=your-aws-region
-```
-
-4. Start the containers:
+### 4. Launch
 
 ```sh
-docker-compose up -d
+docker compose up -d
+docker compose logs -f consumer   # follow ingestion logs
+# open http://localhost:6767      # SPA + API on the same port
 ```
 
-This will start the DMARC Analyzer server, SQS consumer, and PostgreSQL database in containers.
+### 5. Backfill (optional)
 
-### Using Docker Compose with Local Build
-
-1. Make sure Docker and Docker Compose are installed on your system.
-
-2. Create a `docker-compose.yml` file with the following content:
-
-```yaml
-version: '3.8'
-
-services:
-  dmarc-analyzer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "6767:6767"
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarc_analyzer
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-    depends_on:
-      - postgres
-
-  dmarc-consumer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ./consumer
-    environment:
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=dmarc_analyzer
-      - DB_SSLMODE=disable
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-    depends_on:
-      - postgres
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:14
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=dmarc_analyzer
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
-
-volumes:
-  postgres-data:
-```
-
-3. Configure environment variables in a `.env` file in the project root.
-
-4. Build and start the containers:
+If your S3 bucket already has historical reports, replay them once:
 
 ```sh
-docker-compose up -d --build
+docker compose run --rm \
+  -e DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dmarc_analyzer?sslmode=disable \
+  --env-file .env \
+  server ./backfill
 ```
 
-### Manual Deployment
+For a step-by-step new-operator walkthrough including IAM, SES, S3 events, and
+DNS — see **[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**.
 
-1. Build the application and consumer:
+---
+
+## Environment Variables
+
+| Variable | Used by | Required | Description |
+|----------|---------|----------|-------------|
+| `DATABASE_URL` | `server`, `consumer`, `backfill` | yes | PostgreSQL DSN consumed by GORM. Example: `postgresql://user:pass@host:5432/dmarc_analyzer?sslmode=disable` |
+| `S3_BUCKET_NAME` | `consumer`, `backfill` | yes | S3 bucket where SES stores inbound report emails. |
+| `SQS_QUEUE_URL` | `consumer` | yes (for live ingest) | SQS queue URL subscribed to `s3:ObjectCreated:*` events. |
+| `AWS_REGION` | all AWS calls | yes | AWS region for SDK config. |
+| `AWS_ACCESS_KEY_ID` | all AWS calls | optional | Omit when running with an instance role (EC2/ECS/EKS). |
+| `AWS_SECRET_ACCESS_KEY` | all AWS calls | optional | Same as above. |
+| `AWS_SESSION_TOKEN` | all AWS calls | optional | For temporary credentials. |
+
+> ⚠️ Earlier README revisions referenced `DB_HOST` / `DB_PORT` / `DB_USER` /
+> `DB_PASSWORD` / `DB_NAME` / `DB_SSLMODE`. The current code only reads
+> `DATABASE_URL` (see [`backend/db/db.go`](backend/db/db.go)). Use the DSN form.
+
+---
+
+## Documentation
+
+Detailed docs live under [`docs/`](docs/):
+
+| Doc | Audience | What's in it |
+|-----|----------|--------------|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | engineers | Component diagram, every Go package, data flow, schema, enrichment pipeline, OpenAPI codegen. |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | new operators | End-to-end AWS setup (SES, S3, SQS, IAM), DNS, env vars, Docker Compose, k8s notes, hardening. |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | contributors | Local dev loop, tests, OpenAPI regen, schema regen, commit & PR conventions, coding style. |
+| [`docs/API.md`](docs/API.md) | API consumers | All four endpoints with parameters, responses, and `curl` examples. |
+| [`docs/DMARC_PRIMER.md`](docs/DMARC_PRIMER.md) | newcomers | What DMARC / SPF / DKIM are, why aggregate reports exist, how to read them. |
+| [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | operators | Common problems (no data, SQS visibility, parse failures) and how to investigate. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | contributors | Doorway: PR checklist, commit format, dev environment links. |
+| [`AGENTS.md`](AGENTS.md) | repo agents | Conventions for AI / scripted contributors. |
+
+---
+
+## API Overview
+
+The server exposes four read-only JSON endpoints under `/api`. All "date"
+parameters accept `YYYY-MM-DD` (preferred) or RFC3339Nano timestamps.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/domains` | List domains with last-30-day total + pass counts. |
+| `GET` | `/api/domains/{domain}/report?start=&end=` | Summary aggregated by source (ESP / domain / host / IP). |
+| `GET` | `/api/domains/{domain}/report/detail?start=&end=&source=&source_type=` | Raw per-source rows for drill-down. |
+| `GET` | `/api/domains/{domain}/chart/dmarc?start=&end=` | Pass/fail daily time series for the trend chart. |
+
+Example:
 
 ```sh
-# Build the main server
-go build -o dmarc-server ./backend/cmd/server/server.go
-
-# Build the SQS consumer
-go build -o dmarc-consumer ./backend/cmd/consumer/consumer.go
+curl 'http://127.0.0.1:6767/api/domains'
+curl 'http://127.0.0.1:6767/api/domains/example.com/report?start=2026-04-20&end=2026-05-20'
 ```
 
-2. Set up the PostgreSQL database and apply the schema as described in the Development Setup section.
+Full schemas, error semantics, and `curl` examples for each endpoint:
+**[`docs/API.md`](docs/API.md)**.
 
-3. Configure environment variables.
+The canonical machine-readable spec is **[`api/openapi.json`](api/openapi.json)** —
+import it into Postman, Insomnia, or `openapi-generator` to build clients in
+any language.
 
-4. Run the server:
+---
 
-```sh
-./dmarc-server
+## Project Layout
+
+```
+.
+├── api/
+│   ├── openapi.json                  # OpenAPI 3 spec (source of truth)
+│   └── openapi-generator/            # generator template overrides
+├── backend/
+│   ├── cmd/
+│   │   ├── server/server.go          # HTTP API + serves SPA
+│   │   ├── consumer/consumer.go      # SQS-driven ingester
+│   │   ├── backfill/backfill.go      # one-shot S3 importer
+│   │   └── generate_sql.go           # dumps schema.sql via gorm AutoMigrate
+│   ├── handler/                      # API handlers + generated routes
+│   ├── model/                        # GORM model + XML model + custom types
+│   ├── messageprocessor/             # SQS poll loop + dedupe
+│   ├── s3client/, sqsclient/         # AWS client init
+│   ├── senderbase/                   # IP geolocation / ESP enrichment
+│   ├── util/                         # publicsuffix, date parsing
+│   ├── process.go                    # MIME / gzip / zip / XML decoding
+│   └── schema.sql                    # generated Postgres schema
+├── frontend/                         # Vue 3 SPA (Vite + Vuetify + Pinia)
+│   └── src/
+│       ├── views/                    # DomainsView, ReportView
+│       ├── components/               # LineChart, DateRange, DetailDialog
+│       ├── stores/                   # Pinia store
+│       └── services/openapi/         # generated typescript-axios client
+├── scripts/gen-routes.sh             # regenerates routes.gen.go + handlers.gen.go
+├── .github/workflows/                # docker-build.yml, openapi-routes.yml
+├── docker-compose.yml                # local dev convenience
+├── Dockerfile                        # multi-stage: node → go → alpine
+├── Makefile                          # build/run/docker targets
+└── go.mod
 ```
 
-5. Run the consumer in a separate terminal:
+---
 
-```sh
-./dmarc-consumer
-```
+## Contributing
 
+We welcome PRs, issues, and discussion. Start with:
+
+1. Read **[`CONTRIBUTING.md`](CONTRIBUTING.md)** for the short version.
+2. Read **[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)** for the full dev loop
+   (Postgres, Go tests, OpenAPI regen, schema regen, frontend client regen).
+3. Browse open issues, or [open a new one](https://github.com/dmarc-analyzer/dmarc-analyzer/issues/new)
+   describing your change before sending a large PR.
+
+Quick rules:
+
+- Run `go test ./...` and `cd frontend && yarn build` before pushing.
+- Commit messages: short imperative, conventional prefixes when natural
+  (`fix:`, `feat:`, `docs:`, `ci:`). Sign-off (`-s`) and GPG-sign (`-S`) where
+  possible.
+- If you change the API, update [`api/openapi.json`](api/openapi.json) and run
+  `./scripts/gen-routes.sh` so the generated Go files match.
+
+---
 
 ## License
 
-See the [LICENSE](LICENSE) file for details.
+Licensed under the Apache License, Version 2.0 — see [`LICENSE`](LICENSE).
