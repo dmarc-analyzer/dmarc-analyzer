@@ -82,6 +82,7 @@ func DecoderAggregateReport(attachment io.Reader) (*model.AggregateReport, error
 	if err := decoder.Decode(feedback); err != nil {
 		return nil, err
 	}
+	feedback.Finalize()
 	return feedback, nil
 }
 
@@ -349,7 +350,7 @@ func ParseDmarcReport(feedback *model.AggregateReport, messageID string) []*mode
 		}
 		for _, po := range record.POReason {
 			reporting.POReason = append(reporting.POReason, po.Reason)
-			reporting.POComment = append(reporting.POComment, po.Comment)
+			reporting.POComment = append(reporting.POComment, po.Comment.Value)
 		}
 		reports = append(reports, reporting)
 	}

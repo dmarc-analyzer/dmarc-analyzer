@@ -57,8 +57,9 @@ A TXT record at `_dmarc.<domain>` that says:
    - `ruf=mailto:dmarc-failures@example.com` — where to send **failure
      reports** (per-message, much higher volume, more sensitive — DMARC
      Analyzer does **not** parse these).
-4. **Percentage** (`pct=`): apply this policy to what fraction of
-   non-aligned mail?
+4. **Legacy percentage** (`pct=`): RFC 7489 allowed a domain owner to apply
+   policy to only a fraction of non-aligned mail. RFC 9989 removed this tag,
+   but receivers and reports using the legacy format remain common.
 
 Example record:
 
@@ -86,8 +87,8 @@ authenticated **and** aligned.
 ## What's in an aggregate report?
 
 Every receiver that supports DMARC (Gmail, Microsoft 365, Yahoo, Apple,
-etc.) emails a daily-ish XML report to the `rua=` address. The XML
-contains:
+etc.) emails a daily-ish XML report to the `rua=` address. The example
+below shows the widely deployed RFC 7489-era shape:
 
 ```xml
 <feedback>
@@ -139,6 +140,11 @@ contains:
 
 Key points:
 
+- RFC 9990 reports use the
+  `urn:ietf:params:xml:ns:dmarc-2.0` namespace, omit `pct`, and may include
+  fields such as `version`, `generator`, `np`, `testing`, and
+  `discovery_method`. DMARC Analyzer accepts both formats and retains a
+  warning when it salvages a mixed, unqualified report.
 - **One report per (receiver, your-domain, day)**, roughly. Google sends
   one big report per day; some receivers send less often.
 - Each `<record>` describes **aggregate** stats for a particular (source
@@ -234,8 +240,10 @@ When you can answer "yes" to all of:
 - You've added forwarders, marketing tools, and third-party senders to
   your SPF and DKIM.
 
-Move incrementally: `p=none` → `p=quarantine; pct=10` → `pct=50` → `pct=100`
-→ `p=reject`. Watch the dashboard at each step.
+For legacy deployments that still use RFC 7489's `pct`, move incrementally:
+`p=none` → `p=quarantine; pct=10` → `pct=50` → `pct=100` → `p=reject`.
+RFC 9989 no longer defines `pct`; follow the capabilities and rollout
+guidance of the receivers you depend on. Watch the dashboard at each step.
 
 ---
 
@@ -243,8 +251,10 @@ Move incrementally: `p=none` → `p=quarantine; pct=10` → `pct=50` → `pct=10
 
 Specifications and primers worth bookmarking:
 
-- [RFC 7489 — DMARC](https://datatracker.ietf.org/doc/html/rfc7489) — the
-  main spec.
+- [RFC 9989 — DMARC](https://datatracker.ietf.org/doc/html/rfc9989) — the
+  current core protocol.
+- [RFC 9990 — DMARC aggregate reporting](https://datatracker.ietf.org/doc/html/rfc9990)
+- [RFC 7489 — legacy DMARC](https://datatracker.ietf.org/doc/html/rfc7489)
 - [RFC 7208 — SPF](https://datatracker.ietf.org/doc/html/rfc7208)
 - [RFC 6376 — DKIM](https://datatracker.ietf.org/doc/html/rfc6376)
 - [DMARC.org](https://dmarc.org/overview/) — friendly overview.

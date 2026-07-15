@@ -138,8 +138,9 @@ A single DMARC report's journey from mailbox provider to dashboard:
      above based on suffix.
 8. **Parse XML.** `DecoderAggregateReport` runs `xml.NewDecoder` with
    `charset.NewReaderLabel` so non-UTF-8 reports (rare but real) decode
-   correctly. The result is a `model.AggregateReport` matching DMARC
-   aggregate report XML.
+   correctly. It retains the root namespace, classifies RFC 7489-era,
+   RFC 9990, and unqualified mixed-field reports, and records validation
+   warnings without discarding salvageable data.
 9. **Per-record enrichment.** `ParseDmarcReport` iterates each record:
    - Reverse-DNS the source IP (`net.LookupAddr`).
    - SenderBase TXT lookup for org name, host, domain, city/state/country,
@@ -282,7 +283,9 @@ Three files:
   - `Inet` — `net.IP` ↔ Postgres `inet` (custom `Scan` / `Value`,
     `GormDataType() = "inet"`).
 - `xmlmodel.go` — `AggregateReport`, `AggregateReportRecord`, `POReason`,
-  `DKIMAuthResult`, `SPFAuthResult`. Mapped to the DMARC aggregate report XSD.
+  `DKIMAuthResult`, `SPFAuthResult`. Supports both RFC 7489-era reports and
+  RFC 9990 fields, namespace/shape metadata, nullable legacy `pct`, language
+  attributes, and validation warnings.
 
 ### `backend/db/`
 
@@ -348,7 +351,7 @@ CREATE TABLE dmarc_report_entries (
     subdomain_policy    text,             -- sp=
     align_dkim          text,             -- adkim=
     align_spf           text,             -- aspf=
-    pct                 bigint,           -- pct=
+    pct                 bigint,           -- legacy pct=; NULL when absent
     source_ip           inet,
     esp                 text,             -- resolved ESP, e.g. "Google Mail"
     org_name            text,             -- SenderBase org name

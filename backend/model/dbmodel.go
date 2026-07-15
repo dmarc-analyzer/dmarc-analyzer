@@ -9,7 +9,7 @@ type DmarcReportEntry struct {
 	SubdomainPolicy  string      `json:"subdomain_policy"`
 	AlignDKIM        string      `json:"align_dkim"`
 	AlignSPF         string      `json:"align_spf"`
-	Pct              int         `json:"pct"`
+	Pct              *int        `json:"pct"`
 	SourceIP         Inet        `json:"source_ip"`
 	ESP              string      `json:"esp"`
 	OrgName          string      `json:"org_name"`

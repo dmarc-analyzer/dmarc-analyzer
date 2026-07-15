@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feedback xmlns="urn:ietf:params:xml:ns:dmarc-2.0">
+  <version>1.0</version>
+  <report_metadata>
+    <org_name>rfc9990-reporter.example</org_name>
+    <email>dmarc@rfc9990-reporter.example</email>
+    <extra_contact_info xml:lang="en">https://rfc9990-reporter.example/dmarc</extra_contact_info>
+    <report_id>rfc9990-1</report_id>
+    <date_range>
+      <begin>1767225600</begin>
+      <end>1767311999</end>
+    </date_range>
+    <error xml:lang="fr">exemple d'erreur</error>
+    <generator>example-generator 1.0</generator>
+  </report_metadata>
+  <policy_published>
+    <domain>example.com</domain>
+    <p>reject</p>
+    <sp>quarantine</sp>
+    <np>reject</np>
+    <adkim>s</adkim>
+    <aspf>r</aspf>
+    <discovery_method>treewalk</discovery_method>
+    <fo>1</fo>
+    <testing>n</testing>
+  </policy_published>
+  <record>
+    <row>
+      <source_ip>2001:db8::1</source_ip>
+      <count>2</count>
+      <policy_evaluated>
+        <disposition>pass</disposition>
+        <dkim>pass</dkim>
+        <spf>fail</spf>
+        <reason>
+          <type>local_policy</type>
+          <comment xml:lang="de">lokale Richtlinie</comment>
+        </reason>
+      </policy_evaluated>
+    </row>
+    <identifiers>
+      <header_from>example.com</header_from>
+      <envelope_from>bounce.example.com</envelope_from>
+      <envelope_to>recipient.example</envelope_to>
+    </identifiers>
+    <auth_results>
+      <dkim>
+        <domain>example.com</domain>
+        <selector>selector1</selector>
+        <result>pass</result>
+        <human_result xml:lang="en">signature verified</human_result>
+      </dkim>
+      <dkim>
+        <domain>other.example</domain>
+        <selector>selector2</selector>
+        <result>fail</result>
+      </dkim>
+      <spf>
+        <domain>bounce.example.com</domain>
+        <scope>mfrom</scope>
+        <result>softfail</result>
+        <human_result xml:lang="es">registro incompleto</human_result>
+      </spf>
+    </auth_results>
+  </record>
+</feedback>

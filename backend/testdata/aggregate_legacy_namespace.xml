@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feedback xmlns="http://dmarc.org/dmarc-xml/0.1">
+  <report_metadata xmlns="">
+    <org_name>legacy-namespace-reporter.example</org_name>
+    <email>dmarc@legacy-namespace-reporter.example</email>
+    <report_id>legacy-namespace-1</report_id>
+    <date_range>
+      <begin>1767225600</begin>
+      <end>1767311999</end>
+    </date_range>
+  </report_metadata>
+  <policy_published xmlns="">
+    <domain>example.com</domain>
+    <p>none</p>
+    <pct>100</pct>
+  </policy_published>
+  <record xmlns="">
+    <row>
+      <source_ip>192.0.2.4</source_ip>
+      <count>1</count>
+      <policy_evaluated>
+        <disposition>none</disposition>
+        <dkim>pass</dkim>
+        <spf>pass</spf>
+      </policy_evaluated>
+    </row>
+    <identifiers>
+      <header_from>example.com</header_from>
+    </identifiers>
+    <auth_results>
+      <spf>
+        <domain>example.com</domain>
+        <scope>mfrom</scope>
+        <result>pass</result>
+      </spf>
+    </auth_results>
+  </record>
+</feedback>
