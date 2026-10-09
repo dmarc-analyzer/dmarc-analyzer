@@ -25,7 +25,7 @@ the full developer guide is **[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)**.
 
 ```sh
 # Go
-go version                # need 1.25+
+go version                # need 1.27+
 createdb dmarc_analyzer
 psql -d dmarc_analyzer -f backend/schema.sql
 

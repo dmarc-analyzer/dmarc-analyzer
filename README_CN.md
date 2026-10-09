@@ -5,7 +5,7 @@
 > 在仪表盘里查看"谁在以你的域名发邮件"。
 
 [![Apache 2.0 License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Go 1.25+](https://img.shields.io/badge/Go-1.25%2B-00ADD8.svg?logo=go)](https://go.dev/)
+[![Go 1.27+](https://img.shields.io/badge/Go-1.27%2B-00ADD8.svg?logo=go)](https://go.dev/)
 [![Vue 3](https://img.shields.io/badge/Vue-3.5-42b883.svg?logo=vue.js)](https://vuejs.org/)
 [![PostgreSQL 14+](https://img.shields.io/badge/PostgreSQL-14%2B-336791.svg?logo=postgresql)](https://www.postgresql.org/)
 [![Docker Image](https://img.shields.io/badge/image-ghcr.io%2Fdmarc--analyzer%2Fdmarc--analyzer-2496ED.svg?logo=docker)](https://github.com/dmarc-analyzer/dmarc-analyzer/pkgs/container/dmarc-analyzer)
@@ -188,7 +188,7 @@ flowchart LR
 
 | 层 | 技术 |
 |----|------|
-| 后端 | Go 1.25、[Gin](https://github.com/gin-gonic/gin)、[GORM](https://gorm.io/) |
+| 后端 | Go 1.27、[Gin](https://github.com/gin-gonic/gin)、[GORM](https://gorm.io/) |
 | 数据库 | PostgreSQL 14+(使用 `inet` 与 `text[]` 列类型) |
 | AWS SDK | [aws-sdk-go-v2](https://github.com/aws/aws-sdk-go-v2) —— SES(收件)、S3、SQS |
 | 前端 | Vue 3(Composition API)、Vite 7、Vuetify 3、Pinia、Vue Router、Chart.js、date-fns |
