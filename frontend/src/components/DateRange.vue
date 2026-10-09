@@ -15,7 +15,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 // Component emits
 const emit = defineEmits<{
-  'update:date-range': [value: { startDate: string, endDate: string }]
+  'update:dateRange': [value: { startDate: string, endDate: string }]
 }>()
 
 // Reactive state for menu visibility
@@ -84,7 +84,7 @@ const presets = [
  */
 function applyDateRange() {
   if (isValidDateRange.value) {
-    emit('update:date-range', {
+    emit('update:dateRange', {
       startDate: localStartDate.value,
       endDate: localEndDate.value,
     })
